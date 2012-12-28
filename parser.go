@@ -61,6 +61,10 @@ func (i *IntStack) Pop() (ret int) {
 	return
 }
 
+func (i *IntStack) Clear() {
+	i.data = i.data[:]
+}
+
 type Parser struct {
 	stack IntStack
 	data  *strings.Reader
@@ -229,21 +233,20 @@ type PegParser struct {
 
 func (p *PegParser) addNode(add func() bool, name string) bool {
 	start := p.Pos()
-	if add() {
-		node := p.currentNode.Cleanup(start, p.Pos())
-		node.Name = name
-		data := make([]byte, p.Pos()-start)
-		p.push()
+	shouldAdd := add()
+	node := p.currentNode.Cleanup(start, p.Pos())
+	node.Name = name
+	if shouldAdd {
+		end := p.Pos()
+		data := make([]byte, end-start)
 		p.data.Seek(int64(start), 0)
 		if _, err := p.data.Read(data); err == nil {
 			node.Data = string(data)
 		}
-		p.Reject()
+		p.data.Seek(int64(end), 0)
 		p.currentNode.Append(node)
-		return true
 	}
-	p.currentNode.Cleanup(start, -1)
-	return false
+	return shouldAdd
 }
 
 func (p *PegParser) Grammar() bool {
