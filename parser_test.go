@@ -16,7 +16,8 @@ func TestParser(t *testing.T) {
 		if !p.Grammar() {
 			t.Fatalf("Didn't parse correctly")
 		} else {
-			t.Log(p.currentNode)
+			//t.Log(p.currentNode)
+			p.Dump()
 		}
 	}
 }

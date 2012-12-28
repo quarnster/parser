@@ -200,29 +200,30 @@ var (
 	indent = ""
 )
 
-func (n Node) String() string {
+func (n *Node) String() string {
 	s := fmt.Sprintf("%s%d-%d: \"%s\" - Data: \"%s\"\n", indent, n.Range.Start, n.Range.End, n.Name, n.Data)
 	indent += "\t"
 	for i := n.Children.Front(); i != nil; i = i.Next() {
-		s += i.Value.(Node).String()
+		s += i.Value.(*Node).String()
 	}
 	indent = indent[:len(indent)-1]
 	return s
 }
 
-func (n *Node) Cleanup(pos, end int) (popped Node) {
+func (n *Node) Cleanup(pos, end int) *Node {
+	var popped Node
 	popped.Range = Range{pos, end}
 	for i := n.Children.Front(); i != nil; {
 		next := i.Next()
-		if i.Value.(Node).Range.Start >= pos {
-			popped.Append(n.Children.Remove(i).(Node))
+		if i.Value.(*Node).Range.Start >= pos {
+			popped.Append(n.Children.Remove(i).(*Node))
 		}
 		i = next
 	}
-	return popped
+	return &popped
 }
 
-func (n *Node) Append(child Node) {
+func (n *Node) Append(child *Node) {
 	n.Children.PushBack(child)
 }
 
@@ -586,6 +587,255 @@ func (p *PegParser) EndOfLine() bool {
 
 func (p *PegParser) EndOfFile() bool {
 	return p.Not(func() bool { return p.AnyChar() })
+}
+
+var (
+	convMap  = make(map[string]string)
+	indenter CodeFormatter
+	labeler  Labeler
+)
+
+const labelData = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+type Labeler struct {
+	currLabel string
+}
+
+func (l *Labeler) NewLabel() string {
+	ll := len(l.currLabel) - 1
+	if len(l.currLabel) == 0 {
+		l.currLabel += string(labelData[0])
+	} else {
+		idx := strings.Index(labelData, string(l.currLabel[ll]))
+		if idx == len(labelData)-1 {
+			l.currLabel += string(labelData[0])
+		} else {
+			l.currLabel = l.currLabel[:ll] + string(labelData[idx+1])
+		}
+	}
+	return l.currLabel
+}
+
+type CodeFormatter struct {
+	level string
+	data  string
+}
+
+func (i *CodeFormatter) Inc() {
+	i.level += "\t"
+	l := len(i.data)
+	if l > 0 && i.data[l-1] == '\t' {
+		i.data += "\t"
+	}
+}
+func (i *CodeFormatter) Dec() {
+	i.level = i.level[:len(i.level)-1]
+	l := len(i.data)
+	if l > 0 && i.data[l-1] == '\t' {
+		i.data = i.data[:l-1]
+	}
+}
+func (i *CodeFormatter) Add(add string) {
+	//	for _, line := range strings.Split(add, "\n") {
+	i.data += strings.Replace(add, "\n", "\n"+i.level, -1)
+	//	}
+}
+
+func (i *CodeFormatter) String() string {
+	return strings.Replace(i.data, "\t", "  ", -1)
+}
+
+func (p *PegParser) helper(node *Node) {
+	switch node.Name {
+	case "DOT":
+		indenter.Add("/* DOT */ { _, _, err := p.data.ReadRune(); accept = err == nil }\n")
+		return
+	case "Identifier":
+		// if node.Children.Len() > 0 && node.Children.Back().Value.(Node).Name == "Spacing" {
+		// 	return "p." + node.Data
+		// }
+		indenter.Add(strings.TrimSpace(node.Data))
+		return
+	case "Literal":
+		data := strings.TrimSpace(node.Data)
+		if data[0] == '\'' && data[len(data)-1] == '\'' {
+			data = "\"" + data[1:len(data)-1] + "\""
+		}
+		indenter.Add("accept = p.Next(" + data + "); ")
+		return
+	case "Expression":
+		if node.Children.Len() == 1 {
+			p.helper(node.Children.Front().Value.(*Node))
+		} else {
+			label := labeler.NewLabel()
+			indenter.Inc()
+			indenter.Add("/*need one: " + strings.TrimSpace(node.Data) + " */{\n")
+			indenter.Add("pos := p.Pos()\n")
+			for n := node.Children.Front(); n != nil; n = n.Next() {
+				child := n.Value.(*Node)
+				if child.Name == "SLASH" {
+					continue
+				}
+				p.helper(child)
+				indenter.Add("if (accept) { goto " + label + " } else { p.data.Seek(int(pos), 0) }\n")
+			}
+			indenter.Add(label + ":\n")
+			indenter.Dec()
+			indenter.Add("}\n")
+		}
+		return
+	case "Sequence":
+		if node.Children.Len() == 1 {
+			p.helper(node.Children.Front().Value.(*Node))
+		} else {
+
+			label := labeler.NewLabel()
+			indenter.Inc()
+			indenter.Add("\n/* need all: " + strings.TrimSpace(node.Data) + "section " + label + " */ {\n")
+			indenter.Inc()
+			for n := node.Children.Front(); n != nil; n = n.Next() {
+				p.helper(n.Value.(*Node))
+				indenter.Add("if (!accept) { p.data.Seek(int(pos), 0); goto " + label + " }\n")
+			}
+			indenter.Add(label + ":\n")
+			indenter.Dec()
+			indenter.Add("/* end section " + label + " */\n}\n")
+			indenter.Dec()
+		}
+		return
+	case "Prefix":
+		front := node.Children.Front().Value.(*Node)
+		if node.Children.Len() == 1 {
+			p.helper(front)
+		} else {
+			indenter.Inc()
+			indenter.Add("/* prefix: " + strings.TrimSpace(node.Data) + " */ {\n")
+			indenter.Add("pos := p.Pos()\n")
+			p.helper(node.Children.Back().Value.(*Node))
+			indenter.Add("p.data.Seek(int64(pos), 0)\n")
+			switch front.Name {
+			case "NOT":
+				indenter.Add("accept = !accept\n")
+			case "AND":
+				// Don't need to do anything for and
+			default:
+				indenter.Add("NOT_IMPLEMENTED_" + front.Name)
+			}
+			indenter.Dec()
+			indenter.Add("}\n")
+		}
+		return
+	case "Suffix":
+		if node.Children.Len() == 1 {
+			p.helper(node.Children.Front().Value.(*Node))
+		} else {
+			back := node.Children.Back().Value.(*Node)
+			switch back.Name {
+			case "PLUS":
+				p.helper(node.Children.Front().Value.(*Node))
+				fallthrough
+			case "STAR":
+				indenter.Add("for accept {\n")
+			}
+			indenter.Inc()
+			p.helper(node.Children.Front().Value.(*Node))
+			switch back.Name {
+			case "STAR", "PLUS":
+				indenter.Add("if(!accept) {\n")
+				indenter.Inc()
+				indenter.Add("accept = true\nbreak\n")
+				indenter.Dec()
+				indenter.Add("}\n")
+			}
+			indenter.Dec()
+			indenter.Add("}\n")
+		}
+		return
+	case "Primary":
+		front := node.Children.Front().Value.(*Node)
+
+		if front.Name == "Identifier" {
+			// Inline opportunity
+			fd := strings.TrimSpace(front.Data)
+			r, ok := convMap[fd]
+			if false && ok {
+				indenter.Inc()
+				indenter.Add("/* inlined " + fd + " */ {\n")
+				indenter.Inc()
+				indenter.Add(r + "\n")
+				indenter.Dec()
+				indenter.Add(" }\n")
+				indenter.Dec()
+			} else {
+				indenter.Add("accept = p.")
+				p.helper(front)
+				indenter.Add("()\n")
+			}
+			return
+		} else if front.Name == "OPEN" {
+			p.helper(node.Children.Front().Next().Value.(*Node))
+			return
+		}
+	case "Spacing", "Space":
+		// ignore
+	default:
+		indenter.Add(strings.Replace(indent, "\t", "  ", -1) + node.Name + ", " + node.Data)
+	}
+	indenter.Inc()
+	for n := node.Children.Front(); n != nil; n = n.Next() {
+		p.helper(n.Value.(*Node))
+	}
+	indenter.Dec()
+}
+
+func (p *PegParser) RootNode() *Node {
+	return p.currentNode.Children.Front().Value.(*Node)
+}
+
+func (p *PegParser) Dump() {
+	rootNode := p.RootNode()
+	/*
+		for n := rootNode.Children.Back(); n != nil; n = n.Prev() {
+			node := n.Value.(*Node)
+			if node.Name == "Definition" {
+				id := node.Children.Front().Value.(*Node)
+				exp := node.Children.Back().Value.(*Node)
+
+				indenter = CodeFormatter{}
+				p.helper(exp)
+				data := indenter.String()
+				indenter = CodeFormatter{}
+				p.helper(id)
+				defName := indenter.String()
+				convMap[defName] = data
+			}
+		}
+	*/
+	for n := rootNode.Children.Front(); n != nil; n = n.Next() {
+		node := n.Value.(*Node)
+		if node.Name == "Definition" {
+			id := node.Children.Front().Value.(*Node)
+			exp := node.Children.Back().Value.(*Node)
+			indenter = CodeFormatter{level: ""}
+			p.helper(exp)
+			data := indenter.String()
+			indenter = CodeFormatter{}
+			p.helper(id)
+			defName := indenter.String()
+			//			fmt.Println(node)
+			indenter = CodeFormatter{}
+			indenter.Inc()
+			indenter.Add("func (p *PegParser) " + defName + "() bool {\n")
+
+			indenter.Add("accept := false\n")
+			indenter.Add(data)
+			indenter.Add("return accept\n")
+			indenter.Dec()
+			indenter.Add("}\n")
+			fmt.Println(indenter.String())
+			//			break
+		}
+	}
 }
 
 // if __name__ == "__main__":
