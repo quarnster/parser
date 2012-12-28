@@ -22,6 +22,20 @@ func TestParser(t *testing.T) {
 	}
 }
 
+// func TestParser2(t *testing.T) {
+// 	var p PegParser2
+// 	if data, err := ioutil.ReadFile("./peg.peg"); err != nil {
+// 		t.Fatalf("%s", err)
+// 	} else {
+// 		p.data = strings.NewReader(string(data))
+// 		if !p.Grammar() {
+// 			t.Fatalf("Didn't parse correctly")
+// 		} else {
+// 			//t.Log(p.currentNode)
+// 			p.Dump()
+// 		}
+// 	}
+// }
 func BenchmarkParser(b *testing.B) {
 	var p PegParser
 	if data, err := ioutil.ReadFile("./peg.peg"); err != nil {
