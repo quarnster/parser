@@ -234,11 +234,7 @@ func (p *PegParser) IdentCont() bool {
 				return p.IdentStart()
 			},
 			func() bool {
-				return p.NeedOne([]func() bool{
-					func() bool {
-						return p.InRange('0', '9')
-					},
-				})
+				return p.InRange('0', '9')
 			},
 		})
 	}, "IdentCont")
@@ -252,22 +248,14 @@ func (p *PegParser) Literal() bool {
 			func() bool {
 				return p.NeedAll([]func() bool{
 					func() bool {
-						return p.NeedOne([]func() bool{
-							func() bool {
-								return p.InSet("'")
-							},
-						})
+						return p.InSet("'")
 					},
 					func() bool {
 						return p.ZeroOrMore(func() bool {
 							return p.NeedAll([]func() bool{
 								func() bool {
 									return p.Not(func() bool {
-										return p.NeedOne([]func() bool{
-											func() bool {
-												return p.InSet("'")
-											},
-										})
+										return p.InSet("'")
 									})
 								},
 								func() bool {
@@ -277,11 +265,7 @@ func (p *PegParser) Literal() bool {
 						})
 					},
 					func() bool {
-						return p.NeedOne([]func() bool{
-							func() bool {
-								return p.InSet("'")
-							},
-						})
+						return p.InSet("'")
 					},
 					func() bool {
 						return p.Spacing()
@@ -291,22 +275,14 @@ func (p *PegParser) Literal() bool {
 			func() bool {
 				return p.NeedAll([]func() bool{
 					func() bool {
-						return p.NeedOne([]func() bool{
-							func() bool {
-								return p.InSet("\"")
-							},
-						})
+						return p.InSet("\"")
 					},
 					func() bool {
 						return p.ZeroOrMore(func() bool {
 							return p.NeedAll([]func() bool{
 								func() bool {
 									return p.Not(func() bool {
-										return p.NeedOne([]func() bool{
-											func() bool {
-												return p.InSet("\"")
-											},
-										})
+										return p.InSet("\"")
 									})
 								},
 								func() bool {
@@ -316,11 +292,7 @@ func (p *PegParser) Literal() bool {
 						})
 					},
 					func() bool {
-						return p.NeedOne([]func() bool{
-							func() bool {
-								return p.InSet("\"")
-							},
-						})
+						return p.InSet("\"")
 					},
 					func() bool {
 						return p.Spacing()
@@ -399,11 +371,7 @@ func (p *PegParser) Char() bool {
 						return p.Next("\\")
 					},
 					func() bool {
-						return p.NeedOne([]func() bool{
-							func() bool {
-								return p.InSet("nrt'\"[]\\")
-							},
-						})
+						return p.InSet("nrt'\"[]\\")
 					},
 				})
 			},
@@ -413,25 +381,13 @@ func (p *PegParser) Char() bool {
 						return p.Next("\\")
 					},
 					func() bool {
-						return p.NeedOne([]func() bool{
-							func() bool {
-								return p.InRange('0', '2')
-							},
-						})
+						return p.InRange('0', '2')
 					},
 					func() bool {
-						return p.NeedOne([]func() bool{
-							func() bool {
-								return p.InRange('0', '7')
-							},
-						})
+						return p.InRange('0', '7')
 					},
 					func() bool {
-						return p.NeedOne([]func() bool{
-							func() bool {
-								return p.InRange('0', '7')
-							},
-						})
+						return p.InRange('0', '7')
 					},
 				})
 			},
@@ -441,19 +397,11 @@ func (p *PegParser) Char() bool {
 						return p.Next("\\")
 					},
 					func() bool {
-						return p.NeedOne([]func() bool{
-							func() bool {
-								return p.InRange('0', '7')
-							},
-						})
+						return p.InRange('0', '7')
 					},
 					func() bool {
 						return p.Maybe(func() bool {
-							return p.NeedOne([]func() bool{
-								func() bool {
-									return p.InRange('0', '7')
-								},
-							})
+							return p.InRange('0', '7')
 						})
 					},
 				})

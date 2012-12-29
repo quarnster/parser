@@ -283,22 +283,30 @@ func helper(gen Generator, node *Node) (retstring string) {
 	}
 	switch node.Name {
 	case "Class":
-		g := gen.BeginGroup(false)
 		others := ""
+		var exps []string
 		for n := node.Children.Front(); n != nil; n = n.Next() {
 			child := n.Value.(*Node)
 			if child.Name == "Range" {
 				if child.Children.Len() == 2 {
-					g.Add(makeComplexReturn(gen.CheckInRange(child.Children.Front().Value.(*Node).Data, child.Children.Back().Value.(*Node).Data)))
+					exps = append(exps, gen.CheckInRange(child.Children.Front().Value.(*Node).Data, child.Children.Back().Value.(*Node).Data))
 				} else {
 					others += child.Data
 				}
 			}
 		}
 		if others != "" {
-			g.Add(makeComplexReturn(gen.CheckInSet(others)))
+			exps = append(exps, gen.CheckInSet(others))
 		}
-		return gen.EndGroup(g)
+		if len(exps) > 1 {
+			g := gen.BeginGroup(false)
+			for _, e := range exps {
+				g.Add(makeComplexReturn(e))
+			}
+			return gen.EndGroup(g)
+		} else {
+			return exps[0]
+		}
 	case "DOT":
 		return gen.CheckAnyChar()
 	case "Identifier":
