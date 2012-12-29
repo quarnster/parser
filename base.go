@@ -53,6 +53,9 @@ func (i *IntStack) Clear() {
 func (p *Parser) addNode(add func() bool, name string) bool {
 	start := p.Pos()
 	shouldAdd := add()
+	// Remove any danglers
+	p.currentNode.Cleanup(p.Pos(), -1)
+
 	node := p.currentNode.Cleanup(start, p.Pos())
 	node.Name = name
 	if shouldAdd {

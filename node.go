@@ -57,7 +57,8 @@ func (n *Node) Cleanup(pos, end int) *Node {
 	popped.Range = Range{pos, end}
 	for i := n.Children.Front(); i != nil; {
 		next := i.Next()
-		if i.Value.(*Node).Range.Start >= pos {
+		node := i.Value.(*Node)
+		if node.Range.Start >= pos || node.Range.End > pos {
 			popped.Append(n.Children.Remove(i).(*Node))
 		}
 		i = next

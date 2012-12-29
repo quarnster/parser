@@ -51,7 +51,7 @@ func TestParser(t *testing.T) {
 			if data, err := ioutil.ReadFile("./parser.go"); err != nil {
 				t.Fatalf("%s", err)
 			} else {
-				data2 := []byte(GenerateParser(p.RootNode(), &GoGenerator{name: "PegParser"}))
+				data2 := []byte(GenerateParser(p.RootNode(), &GoGenerator{Name: "PegParser", AddDebugLogging: false}))
 				if cmp := bytes.Compare(data, data2); cmp != 0 {
 					d, _ := diff(data, data2)
 					t.Fatalf("Generated parser isn't equal to self: %d\n%s\n", cmp, string(d))

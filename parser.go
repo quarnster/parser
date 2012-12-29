@@ -27,7 +27,7 @@ type PegParser struct {
 }
 
 func (p *PegParser) Grammar() bool {
-	/* Grammar       <- Spacing Definition+ EndOfFile */
+	// Grammar       <- Spacing Definition+ EndOfFile?
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -39,14 +39,16 @@ func (p *PegParser) Grammar() bool {
 				})
 			},
 			func() bool {
-				return p.EndOfFile()
+				return p.Maybe(func() bool {
+					return p.EndOfFile()
+				})
 			},
 		})
 	}, "Grammar")
 }
 
 func (p *PegParser) Definition() bool {
-	/* Definition    <- Identifier LEFTARROW Expression */
+	// Definition    <- Identifier LEFTARROW Expression
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -63,7 +65,7 @@ func (p *PegParser) Definition() bool {
 }
 
 func (p *PegParser) Expression() bool {
-	/* Expression    <- Sequence (SLASH Sequence)* */
+	// Expression    <- Sequence (SLASH Sequence)*
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -86,7 +88,7 @@ func (p *PegParser) Expression() bool {
 }
 
 func (p *PegParser) Sequence() bool {
-	/* Sequence      <- Prefix* */
+	// Sequence      <- Prefix*
 	return p.addNode(func() bool {
 		return p.ZeroOrMore(func() bool {
 			return p.Prefix()
@@ -95,7 +97,7 @@ func (p *PegParser) Sequence() bool {
 }
 
 func (p *PegParser) Prefix() bool {
-	/* Prefix        <- (AND / NOT)? Suffix */
+	// Prefix        <- (AND / NOT)? Suffix
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -118,7 +120,7 @@ func (p *PegParser) Prefix() bool {
 }
 
 func (p *PegParser) Suffix() bool {
-	/* Suffix        <- Primary (QUESTION / STAR / PLUS)? */
+	// Suffix        <- Primary (QUESTION / STAR / PLUS)?
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -144,11 +146,10 @@ func (p *PegParser) Suffix() bool {
 }
 
 func (p *PegParser) Primary() bool {
-	/* Primary       <- Identifier !LEFTARROW
-	 *                / OPEN Expression CLOSE
-	 *                / Literal / Class / DOT
-	 * # Lexical syntax
-	 */
+	// Primary       <- Identifier !LEFTARROW
+	//                / OPEN Expression CLOSE
+	//                / Literal / Class / DOT
+	// # Lexical syntax
 	return p.addNode(func() bool {
 		return p.NeedOne([]func() bool{
 			func() bool {
@@ -190,7 +191,7 @@ func (p *PegParser) Primary() bool {
 }
 
 func (p *PegParser) Identifier() bool {
-	/* Identifier    <- IdentStart IdentCont* Spacing */
+	// Identifier    <- IdentStart IdentCont* Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -209,7 +210,7 @@ func (p *PegParser) Identifier() bool {
 }
 
 func (p *PegParser) IdentStart() bool {
-	/* IdentStart    <- [a-zA-Z_] */
+	// IdentStart    <- [a-zA-Z_]
 	return p.addNode(func() bool {
 		return p.NeedOne([]func() bool{
 			func() bool {
@@ -219,14 +220,14 @@ func (p *PegParser) IdentStart() bool {
 				return p.InRange('A', 'Z')
 			},
 			func() bool {
-				return p.InSet(`_`)
+				return p.InSet("_")
 			},
 		})
 	}, "IdentStart")
 }
 
 func (p *PegParser) IdentCont() bool {
-	/* IdentCont     <- IdentStart / [0-9] */
+	// IdentCont     <- IdentStart / [0-9]
 	return p.addNode(func() bool {
 		return p.NeedOne([]func() bool{
 			func() bool {
@@ -244,9 +245,8 @@ func (p *PegParser) IdentCont() bool {
 }
 
 func (p *PegParser) Literal() bool {
-	/* Literal       <- ['] (!['] Char)* ['] Spacing
-	 *                / ["] (!["] Char)* ["] Spacing
-	 */
+	// Literal       <- ['] (!['] Char)* ['] Spacing
+	//                / ["] (!["] Char)* ["] Spacing
 	return p.addNode(func() bool {
 		return p.NeedOne([]func() bool{
 			func() bool {
@@ -254,7 +254,7 @@ func (p *PegParser) Literal() bool {
 					func() bool {
 						return p.NeedOne([]func() bool{
 							func() bool {
-								return p.InSet(`'`)
+								return p.InSet("'")
 							},
 						})
 					},
@@ -265,7 +265,7 @@ func (p *PegParser) Literal() bool {
 									return p.Not(func() bool {
 										return p.NeedOne([]func() bool{
 											func() bool {
-												return p.InSet(`'`)
+												return p.InSet("'")
 											},
 										})
 									})
@@ -279,7 +279,7 @@ func (p *PegParser) Literal() bool {
 					func() bool {
 						return p.NeedOne([]func() bool{
 							func() bool {
-								return p.InSet(`'`)
+								return p.InSet("'")
 							},
 						})
 					},
@@ -293,7 +293,7 @@ func (p *PegParser) Literal() bool {
 					func() bool {
 						return p.NeedOne([]func() bool{
 							func() bool {
-								return p.InSet(`"`)
+								return p.InSet("\"")
 							},
 						})
 					},
@@ -304,7 +304,7 @@ func (p *PegParser) Literal() bool {
 									return p.Not(func() bool {
 										return p.NeedOne([]func() bool{
 											func() bool {
-												return p.InSet(`"`)
+												return p.InSet("\"")
 											},
 										})
 									})
@@ -318,7 +318,7 @@ func (p *PegParser) Literal() bool {
 					func() bool {
 						return p.NeedOne([]func() bool{
 							func() bool {
-								return p.InSet(`"`)
+								return p.InSet("\"")
 							},
 						})
 					},
@@ -332,7 +332,7 @@ func (p *PegParser) Literal() bool {
 }
 
 func (p *PegParser) Class() bool {
-	/* Class         <- '[' (!']' Range)* ']' Spacing */
+	// Class         <- '[' (!']' Range)* ']' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -363,7 +363,7 @@ func (p *PegParser) Class() bool {
 }
 
 func (p *PegParser) Range() bool {
-	/* Range         <- Char '-' Char / Char */
+	// Range         <- Char '-' Char / Char
 	return p.addNode(func() bool {
 		return p.NeedOne([]func() bool{
 			func() bool {
@@ -387,11 +387,10 @@ func (p *PegParser) Range() bool {
 }
 
 func (p *PegParser) Char() bool {
-	/* Char          <- '\\' [nrt'"\[\]\\]
-	 *                / '\\' [0-2][0-7][0-7]
-	 *                / '\\' [0-7][0-7]?
-	 *                / !'\\' .
-	 */
+	// Char          <- '\\' [nrt'"\[\]\\]
+	//                / '\\' [0-2][0-7][0-7]
+	//                / '\\' [0-7][0-7]?
+	//                / !'\\' .
 	return p.addNode(func() bool {
 		return p.NeedOne([]func() bool{
 			func() bool {
@@ -402,7 +401,7 @@ func (p *PegParser) Char() bool {
 					func() bool {
 						return p.NeedOne([]func() bool{
 							func() bool {
-								return p.InSet(`nrt'"\[\]\\`)
+								return p.InSet("nrt'\"[]\\")
 							},
 						})
 					},
@@ -476,7 +475,7 @@ func (p *PegParser) Char() bool {
 }
 
 func (p *PegParser) LEFTARROW() bool {
-	/* LEFTARROW     <- '<-' Spacing */
+	// LEFTARROW     <- '<-' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -490,7 +489,7 @@ func (p *PegParser) LEFTARROW() bool {
 }
 
 func (p *PegParser) SLASH() bool {
-	/* SLASH         <- '/' Spacing */
+	// SLASH         <- '/' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -504,7 +503,7 @@ func (p *PegParser) SLASH() bool {
 }
 
 func (p *PegParser) AND() bool {
-	/* AND           <- '&' Spacing */
+	// AND           <- '&' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -518,7 +517,7 @@ func (p *PegParser) AND() bool {
 }
 
 func (p *PegParser) NOT() bool {
-	/* NOT           <- '!' Spacing */
+	// NOT           <- '!' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -532,7 +531,7 @@ func (p *PegParser) NOT() bool {
 }
 
 func (p *PegParser) QUESTION() bool {
-	/* QUESTION      <- '?' Spacing */
+	// QUESTION      <- '?' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -546,7 +545,7 @@ func (p *PegParser) QUESTION() bool {
 }
 
 func (p *PegParser) STAR() bool {
-	/* STAR          <- '*' Spacing */
+	// STAR          <- '*' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -560,7 +559,7 @@ func (p *PegParser) STAR() bool {
 }
 
 func (p *PegParser) PLUS() bool {
-	/* PLUS          <- '+' Spacing */
+	// PLUS          <- '+' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -574,7 +573,7 @@ func (p *PegParser) PLUS() bool {
 }
 
 func (p *PegParser) OPEN() bool {
-	/* OPEN          <- '(' Spacing */
+	// OPEN          <- '(' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -588,7 +587,7 @@ func (p *PegParser) OPEN() bool {
 }
 
 func (p *PegParser) CLOSE() bool {
-	/* CLOSE         <- ')' Spacing */
+	// CLOSE         <- ')' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -602,7 +601,7 @@ func (p *PegParser) CLOSE() bool {
 }
 
 func (p *PegParser) DOT() bool {
-	/* DOT           <- '.' Spacing */
+	// DOT           <- '.' Spacing
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -616,7 +615,7 @@ func (p *PegParser) DOT() bool {
 }
 
 func (p *PegParser) Spacing() bool {
-	/* Spacing       <- (Space / Comment)* */
+	// Spacing       <- (Space / Comment)*
 	return p.addNode(func() bool {
 		return p.ZeroOrMore(func() bool {
 			return p.NeedOne([]func() bool{
@@ -632,7 +631,7 @@ func (p *PegParser) Spacing() bool {
 }
 
 func (p *PegParser) Comment() bool {
-	/* Comment       <- '#' (!EndOfLine .)* EndOfLine */
+	// Comment       <- '#' (!EndOfLine .)* EndOfLine
 	return p.addNode(func() bool {
 		return p.NeedAll([]func() bool{
 			func() bool {
@@ -660,7 +659,7 @@ func (p *PegParser) Comment() bool {
 }
 
 func (p *PegParser) Space() bool {
-	/* Space         <- ' ' / '\t' / EndOfLine */
+	// Space         <- ' ' / '\t' / EndOfLine
 	return p.addNode(func() bool {
 		return p.NeedOne([]func() bool{
 			func() bool {
@@ -677,7 +676,7 @@ func (p *PegParser) Space() bool {
 }
 
 func (p *PegParser) EndOfLine() bool {
-	/* EndOfLine     <- '\r\n' / '\n' / '\r' */
+	// EndOfLine     <- '\r\n' / '\n' / '\r'
 	return p.addNode(func() bool {
 		return p.NeedOne([]func() bool{
 			func() bool {
@@ -694,7 +693,7 @@ func (p *PegParser) EndOfLine() bool {
 }
 
 func (p *PegParser) EndOfFile() bool {
-	/* EndOfFile     <- !. */
+	// EndOfFile     <- !.
 	return p.addNode(func() bool {
 		return p.Not(func() bool {
 			return p.AnyChar()

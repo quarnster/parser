@@ -96,14 +96,14 @@ type Generator interface {
 
 type GoGenerator struct {
 	output          string
-	addDebugLogging bool
+	AddDebugLogging bool
 	Name            string
 }
 
 func (g *GoGenerator) Begin() {
 	imports := ""
-	if g.addDebugLogging {
-		imports += "\nimports (\n\t\"log\"\n)\n"
+	if g.AddDebugLogging {
+		imports += "\nimport (\n\t\"log\"\n)\n"
 	}
 	g.output = `/*
 Copyright (c) 2012 Fredrik Ehnbom
@@ -129,7 +129,7 @@ freely, subject to the following restrictions:
 */
 `
 	g.output += fmt.Sprintln("package parser\n" + imports + "\ntype " + g.Name + " struct {\n\tParser\n}\n")
-	if g.addDebugLogging {
+	if g.AddDebugLogging {
 		g.output += "var fm CodeFormatter\n\n"
 	}
 }
@@ -152,14 +152,9 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 	indenter := CodeFormatter{}
 	indenter.Add("func (p *" + g.Name + ") " + defName + "() bool {\n")
 	indenter.Inc()
-	comment := "/* " + strings.Replace(strings.TrimSpace(node.Data), "\n", "\n * ", -1)
-	indenter.Add(comment)
-	if strings.ContainsRune(comment, '\n') {
-		indenter.Add("\n")
-	}
-	indenter.Add(" */\n")
+	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data), "\n", "\n// ", -1) + "\n")
 
-	if g.addDebugLogging {
+	if g.AddDebugLogging {
 		indenter.Add(`var (
     pos = p.Pos()
     l   = p.data.Len()
@@ -169,7 +164,7 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 		indenter.Add("fm.Inc()\n")
 	}
 	data = "p.addNode(" + g.MakeFunction("return "+data) + ", \"" + defName + "\")"
-	if g.addDebugLogging {
+	if g.AddDebugLogging {
 		indenter.Add("res := " + data)
 		indenter.Add("\nfm.Dec()\n")
 		indenter.Add(`if !res && p.Pos() != pos {
@@ -218,7 +213,12 @@ func (g *GoGenerator) CheckInRange(a, b string) string {
 }
 
 func (g *GoGenerator) CheckInSet(a string) string {
-	return "p.InSet(`" + a + "`)"
+	a = strings.Replace(a, "\\[", "[", -1)
+	a = strings.Replace(a, "\\]", "]", -1)
+	a = strings.Replace(a, "\n", "\\n", -1)
+	a = strings.Replace(a, "\r", "\\r", -1)
+	a = strings.Replace(a, "\"", "\\\"", -1)
+	return "p.InSet(\"" + a + "\")"
 }
 
 func (g *GoGenerator) CheckAnyChar() string {
@@ -226,9 +226,7 @@ func (g *GoGenerator) CheckAnyChar() string {
 }
 
 func (g *GoGenerator) CheckNext(a string) string {
-	if a[0] == '\'' && a[len(a)-1] == '\'' {
-		a = "\"" + a[1:len(a)-1] + "\""
-	}
+	a = "\"" + strings.Replace(a[1:len(a)-1], "\"", "\\\"", -1) + "\""
 	return "p.Next(" + a + ")"
 }
 
@@ -307,11 +305,15 @@ func helper(gen Generator, node *Node) (retstring string) {
 		back := node.Children.Back().Value.(*Node)
 		data := node.Data
 		if back.Name == "Spacing" {
-			data = strings.Replace(data, back.Data, "", -1)
+			data = data[:strings.LastIndex(data, back.Data)]
 		}
 		return data
 	case "Literal":
-		data := strings.TrimSpace(node.Data)
+		back := node.Children.Back().Value.(*Node)
+		data := node.Data
+		if back.Name == "Spacing" {
+			data = data[:strings.LastIndex(data, back.Data)]
+		}
 		return gen.CheckNext(data)
 	case "Expression":
 		if node.Children.Len() == 1 {
