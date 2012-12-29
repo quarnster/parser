@@ -77,6 +77,12 @@ type Parser struct {
 func (p *Parser) Init() {
 }
 
+func (p *Parser) SetData(data string) {
+	p.currentNode = Node{}
+	p.stack = IntStack{}
+	p.data = strings.NewReader(data)
+}
+
 func (p *Parser) RootNode() *Node {
 	return p.currentNode.Children.Front().Value.(*Node)
 }

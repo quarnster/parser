@@ -97,7 +97,7 @@ type Generator interface {
 type GoGenerator struct {
 	output          string
 	addDebugLogging bool
-	name            string
+	Name            string
 }
 
 func (g *GoGenerator) Begin() {
@@ -128,7 +128,7 @@ freely, subject to the following restrictions:
    distribution.
 */
 `
-	g.output += fmt.Sprintln("package parser\n" + imports + "\ntype " + g.name + " struct {\n\tParser\n}\n")
+	g.output += fmt.Sprintln("package parser\n" + imports + "\ntype " + g.Name + " struct {\n\tParser\n}\n")
 	if g.addDebugLogging {
 		g.output += "var fm CodeFormatter\n\n"
 	}
@@ -150,7 +150,7 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 	defName := helper(g, id)
 
 	indenter := CodeFormatter{}
-	indenter.Add("func (p *" + g.name + ") " + defName + "() bool {\n")
+	indenter.Add("func (p *" + g.Name + ") " + defName + "() bool {\n")
 	indenter.Inc()
 	comment := "/* " + strings.Replace(strings.TrimSpace(node.Data), "\n", "\n * ", -1)
 	indenter.Add(comment)
