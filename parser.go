@@ -37,16 +37,6 @@ const (
 	nilrune = '\u0000'
 )
 
-type Range struct {
-	Start, End int
-}
-type Node struct {
-	Range    Range
-	Name     string
-	Children list.List
-	Data     string
-}
-
 type IntStack struct {
 	data []int
 }
@@ -62,16 +52,77 @@ func (i *IntStack) Pop() (ret int) {
 	return
 }
 
+type Range struct {
+	Start, End int
+}
+
+type Node struct {
+	Range    Range
+	Name     string
+	Children list.List
+	Data     string
+}
+
 func (i *IntStack) Clear() {
 	i.data = i.data[:]
 }
 
+func (n *Node) String() string {
+	s := fmt.Sprintf("%s%d-%d: \"%s\" - Data: \"%s\"\n", indent, n.Range.Start, n.Range.End, n.Name, n.Data)
+	indent += "\t"
+	for i := n.Children.Front(); i != nil; i = i.Next() {
+		s += i.Value.(*Node).String()
+	}
+	indent = indent[:len(indent)-1]
+	return s
+}
+
+func (n *Node) Cleanup(pos, end int) *Node {
+	var popped Node
+	popped.Range = Range{pos, end}
+	for i := n.Children.Front(); i != nil; {
+		next := i.Next()
+		if i.Value.(*Node).Range.Start >= pos {
+			popped.Append(n.Children.Remove(i).(*Node))
+		}
+		i = next
+	}
+	return &popped
+}
+
+func (n *Node) Append(child *Node) {
+	n.Children.PushBack(child)
+}
+
+func (p *Parser) addNode(add func() bool, name string) bool {
+	start := p.Pos()
+	shouldAdd := add()
+	node := p.currentNode.Cleanup(start, p.Pos())
+	node.Name = name
+	if shouldAdd {
+		end := p.Pos()
+		data := make([]byte, end-start)
+		p.data.Seek(int64(start), 0)
+		if _, err := p.data.Read(data); err == nil {
+			node.Data = string(data)
+		}
+		p.data.Seek(int64(end), 0)
+		p.currentNode.Append(node)
+	}
+	return shouldAdd
+}
+
 type Parser struct {
-	stack IntStack
-	data  *strings.Reader
+	stack       IntStack
+	data        *strings.Reader
+	currentNode Node
 }
 
 func (p *Parser) Init() {
+}
+
+func (p *Parser) RootNode() *Node {
+	return p.currentNode.Children.Front().Value.(*Node)
 }
 
 func (p *Parser) Pos() int {
@@ -169,7 +220,7 @@ func (p *Parser) pushNext() (rune, bool) {
 
 func (p *Parser) InRange(c1, c2 rune) bool {
 	if c, ok := p.pushNext(); !ok {
-		return false
+		return p.Reject()
 	} else {
 		if c >= c1 && c <= c2 {
 			return p.Accept()
@@ -201,54 +252,8 @@ var (
 	indent = ""
 )
 
-func (n *Node) String() string {
-	s := fmt.Sprintf("%s%d-%d: \"%s\" - Data: \"%s\"\n", indent, n.Range.Start, n.Range.End, n.Name, n.Data)
-	indent += "\t"
-	for i := n.Children.Front(); i != nil; i = i.Next() {
-		s += i.Value.(*Node).String()
-	}
-	indent = indent[:len(indent)-1]
-	return s
-}
-
-func (n *Node) Cleanup(pos, end int) *Node {
-	var popped Node
-	popped.Range = Range{pos, end}
-	for i := n.Children.Front(); i != nil; {
-		next := i.Next()
-		if i.Value.(*Node).Range.Start >= pos {
-			popped.Append(n.Children.Remove(i).(*Node))
-		}
-		i = next
-	}
-	return &popped
-}
-
-func (n *Node) Append(child *Node) {
-	n.Children.PushBack(child)
-}
-
 type PegParser struct {
 	Parser
-	currentNode Node
-}
-
-func (p *PegParser) addNode(add func() bool, name string) bool {
-	start := p.Pos()
-	shouldAdd := add()
-	node := p.currentNode.Cleanup(start, p.Pos())
-	node.Name = name
-	if shouldAdd {
-		end := p.Pos()
-		data := make([]byte, end-start)
-		p.data.Seek(int64(start), 0)
-		if _, err := p.data.Read(data); err == nil {
-			node.Data = string(data)
-		}
-		p.data.Seek(int64(end), 0)
-		p.currentNode.Append(node)
-	}
-	return shouldAdd
 }
 
 func (p *PegParser) Grammar() bool {
@@ -594,12 +599,18 @@ var (
 	convMap    = make(map[string]*Node)
 	visitedMap = make(map[string]bool)
 	indenter   CodeFormatter
-	labeler    Labeler
+	//	labeler    Labeler
+	blocks list.List
 )
 
 const (
-	labelData      = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	enableInlining = true
+	labelData       = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	enableInlining  = false
+	inlineSuffix    = false
+	inlineClass     = false
+	inlinePrefix    = false
+	addDebugLogging = true
+	addNodes        = false
 )
 
 type Labeler struct {
@@ -641,154 +652,337 @@ func (i *CodeFormatter) Dec() {
 	}
 }
 func (i *CodeFormatter) Add(add string) {
-	//	for _, line := range strings.Split(add, "\n") {
 	i.data += strings.Replace(add, "\n", "\n"+i.level, -1)
-	//	}
 }
 
 func (i *CodeFormatter) String() string {
-	return strings.Replace(i.data, "\t", "    ", -1)
+	return i.data
 }
 
-func (p *PegParser) helper(node *Node) {
+const (
+	ACTION_REJECT_IF_TRUE = (1 << (iota + 1))
+	ACTION_ACCEPT_IF_TRUE
+	ACTION_REJECT_IF_FALSE
+	ACTION_ACCEPT_IF_FALSE
+	ACTION_REJECT_ALWAYS
+	ACTION_ACCEPT_ALWAYS
+	ACTION_RETURN_VALUE
+	ACTION_REJECT_ADD
+	ACTION_ACCEPT_ADD
+	ACTION_DEFAULT = ACTION_REJECT_IF_FALSE | ACTION_ACCEPT_IF_TRUE
+)
+
+type Block struct {
+	pcount      int
+	formatter   CodeFormatter
+	haveComplex bool
+	needPush    bool
+}
+
+func currentBlock() *Block {
+	return blocks.Back().Value.(*Block)
+}
+func addLine(line string) {
+	currentBlock().formatter.Add(line)
+}
+
+func addPush() {
+	currentBlock().pcount++
+	addLine("p.push()\n")
+}
+func addPop() {
+	currentBlock().pcount--
+}
+func addAccept() {
+	addPop()
+	currentBlock().needPush = true
+	//addLine("true\n")
+	addLine("p.Accept()\n")
+}
+func addReject() {
+	addPop()
+	currentBlock().needPush = true
+	//addLine("false\n")
+	addLine("p.Reject()\n")
+}
+
+func startBlock(name string) {
+	blocks.PushBack(&Block{})
+	//	addLine("/* " + name + " */\n{\n")
+	//	currentBlock().formatter.Inc()
+	//addPush()
+}
+
+func endBlock(endtest string, actions int) string {
+	// for actions == 0 && currentBlock().pcount > 0 {
+	// 	addReject()
+	// }
+	addReturn(endtest, actions)
+	//	currentBlock().formatter.Dec()
+	//	addLine("}\n")
+	back := blocks.Back()
+	blocks.Remove(back)
+	bb := back.Value.(*Block)
+	ret := bb.formatter.String()
+	if bb.needPush {
+		ret = makeComplex("p.push()\n"+ret) + "()"
+	}
+	return ret
+}
+
+func addReturn(value string, actions int) {
+	if actions&(ACTION_REJECT_IF_TRUE|ACTION_ACCEPT_IF_TRUE) != 0 {
+		addLine("if " + value + " {\n\treturn ")
+		if actions&ACTION_REJECT_IF_TRUE != 0 {
+			addReject()
+		} else {
+			addAccept()
+		}
+		if actions&(ACTION_REJECT_IF_FALSE|ACTION_ACCEPT_IF_FALSE) != 0 {
+			addLine("}\n\treturn ")
+			if actions&ACTION_REJECT_IF_FALSE != 0 {
+				addReject()
+			} else {
+				addAccept()
+			}
+			addLine("\n")
+		} else {
+			addLine("}\n")
+		}
+	} else if actions&(ACTION_REJECT_IF_FALSE|ACTION_ACCEPT_IF_FALSE) != 0 {
+		addLine("if !(" + value + ") {\n\treturn ")
+		if actions&ACTION_REJECT_IF_FALSE != 0 {
+			addReject()
+		} else {
+			addAccept()
+		}
+		addLine("}\n")
+	} else {
+		if actions&ACTION_REJECT_ADD != 0 {
+			addReject()
+		} else if actions&ACTION_ACCEPT_ADD != 0 {
+			addAccept()
+		}
+		if actions&ACTION_REJECT_ALWAYS != 0 {
+			addLine(value + "\n")
+			addLine("return ")
+			addReject()
+		} else if actions&ACTION_ACCEPT_ALWAYS != 0 {
+			addLine(value + "\n")
+			addLine("return ")
+			addAccept()
+		} else if len(value) > 0 {
+			addLine("return " + value + "\n")
+		}
+	}
+}
+
+func makeReturn(value string) string {
+	return "return " + value
+}
+
+func makeCall(value string) string {
+	return value + "()"
+}
+
+func makeReturnCall(value string) string {
+	return makeCall(makeReturn(value))
+}
+
+func makeComplex(value string) string {
+	f := CodeFormatter{}
+	f.Add("func() bool {\n")
+	f.Inc()
+	f.Add(value)
+	f.Dec()
+	f.Add("\n}")
+	return f.String()
+}
+
+func makeComplexReturn(value string) string {
+	return makeComplex(makeReturn(value))
+}
+
+func makeComplexReturnCall(value string) string {
+	return makeCall(makeComplexReturn(value))
+}
+
+func addComplexReturn(value string, actions int) {
+	// if !currentBlock().haveComplex {
+	// 	currentBlock().haveComplex = true
+	// 	addLine("var ret bool\n")
+	// }
+	addReturn(makeComplex(value)+"()", actions)
+}
+
+func (p *PegParser) helper(node *Node) (retstring string) {
+	f := CodeFormatter{}
+	// startBlock("tmp")
+	// defer endBlock("", 0)
 	switch node.Name {
 	case "Class":
-		indenter.Add("/* Class: " + strings.TrimSpace(node.Data) + " */\n{\n")
-		indenter.Inc()
-		indenter.Add("pos := p.Pos()\n")
+		if inlineClass {
+			startBlock("Class: " + strings.TrimSpace(node.Data))
 
-		label := labeler.NewLabel()
-		indenter.Add("c, _, err := p.data.ReadRune()\naccept = err == nil\nif !accept { goto " + label + " }\n")
-		others := ""
-		for n := node.Children.Front(); n != nil; n = n.Next() {
-			child := n.Value.(*Node)
-			if child.Name == "Range" {
-				if child.Children.Len() == 2 {
-					indenter.Add("accept = c >= '" + child.Children.Front().Value.(*Node).Data + "' && c <= '" + child.Children.Back().Value.(*Node).Data + "'\n")
-					indenter.Add("if accept { goto " + label + " }\n")
-				} else {
-					others += child.Data
+			addLine("c, _, err := p.data.ReadRune()\n")
+			addReturn("err == nil", ACTION_REJECT_IF_FALSE)
+			others := ""
+			for n := node.Children.Front(); n != nil; n = n.Next() {
+				child := n.Value.(*Node)
+				if child.Name == "Range" {
+					if child.Children.Len() == 2 {
+						addReturn("c >= '"+child.Children.Front().Value.(*Node).Data+"' && c <= '"+child.Children.Back().Value.(*Node).Data+"'", ACTION_ACCEPT_IF_TRUE)
+					} else {
+						others += child.Data
+					}
 				}
 			}
+			if others != "" {
+				addReturn("strings.ContainsRune(`"+others+"`, c)", ACTION_ACCEPT_IF_TRUE)
+			}
+			return endBlock("", ACTION_REJECT_ALWAYS)
+		} else {
+			f.Add("p.NeedOne([]func() bool{\n")
+			f.Inc()
+			others := ""
+			for n := node.Children.Front(); n != nil; n = n.Next() {
+				child := n.Value.(*Node)
+				if child.Name == "Range" {
+					if child.Children.Len() == 2 {
+						f.Add(makeComplexReturn("p.InRange('"+child.Children.Front().Value.(*Node).Data+"', '"+child.Children.Back().Value.(*Node).Data+"')") + ",\n")
+					} else {
+						others += child.Data
+					}
+				}
+			}
+			if others != "" {
+				f.Add(makeComplexReturn("p.InSet(`"+others+"`)") + ",\n")
+			}
+			f.Dec()
+			f.Add("})")
+			return f.String()
+
 		}
-		if others != "" {
-			indenter.Add("accept = strings.ContainsRune(`" + others + "`, c)\n")
-		}
-		indenter.Add(label + ":\n")
-		indenter.Add("if !accept { p.data.Seek(int64(pos), 0) }\n")
-		indenter.Dec()
-		indenter.Add("}\n")
-		return
 	case "DOT":
-		indenter.Add("/* DOT */ { _, _, err := p.data.ReadRune(); accept = err == nil }\n")
-		return
+		return "p.AnyChar()"
 	case "Identifier":
 		back := node.Children.Back().Value.(*Node)
 		data := node.Data
 		if back.Name == "Spacing" {
 			data = strings.Replace(data, back.Data, "", -1)
 		}
-		indenter.Add(data)
-		return
+		return data
 	case "Literal":
 		data := strings.TrimSpace(node.Data)
 		if data[0] == '\'' && data[len(data)-1] == '\'' {
 			data = "\"" + data[1:len(data)-1] + "\""
 		}
-		indenter.Add("accept = p.Next(" + data + ")\n")
-		return
+		return "p.Next(" + data + ")"
 	case "Expression":
 		if node.Children.Len() == 1 {
-			p.helper(node.Children.Front().Value.(*Node))
+			return p.helper(node.Children.Front().Value.(*Node))
 		} else {
-			label := labeler.NewLabel()
-			indenter.Add("/*need one: " + strings.TrimSpace(node.Data) + " */\n{\n")
-			indenter.Inc()
-			indenter.Add("pos := p.Pos()\n")
+			//startBlock("need one: " + strings.TrimSpace(node.Data))
+			f.Add("p.NeedOne([]func() bool{\n")
+			f.Inc()
+			i := 0
 			for n := node.Children.Front(); n != nil; n = n.Next() {
+				i++
 				child := n.Value.(*Node)
-				if child.Name == "SLASH" {
+				if i&1 == 0 {
 					continue
 				}
-				p.helper(child)
-				indenter.Add("if (accept) { goto " + label + " } else { p.data.Seek(int64(pos), 0) }\n")
+				f.Add(makeComplexReturn(p.helper(child)) + ",\n")
 			}
-			indenter.Add(label + ":\n")
-			indenter.Dec()
-			indenter.Add("}\n")
+			f.Dec()
+			f.Add("})")
+
+			return f.String()
 		}
 		return
 	case "Sequence":
 		if node.Children.Len() == 1 {
-			p.helper(node.Children.Front().Value.(*Node))
+			return p.helper(node.Children.Front().Value.(*Node))
 		} else {
-			label := labeler.NewLabel()
-			indenter.Add("/* need all: " + strings.TrimSpace(node.Data) + " */\n{\n")
-			indenter.Inc()
-			indenter.Add("pos := p.Pos()\n")
+			f.Add("p.NeedAll([]func() bool{\n")
+			f.Inc()
 			for n := node.Children.Front(); n != nil; n = n.Next() {
-				p.helper(n.Value.(*Node))
-				indenter.Add("if (!accept) { p.data.Seek(int64(pos), 0); goto " + label + " }\n")
+				f.Add(makeComplexReturn(p.helper(n.Value.(*Node))) + ",\n")
 			}
-			indenter.Add(label + ":\n")
-			indenter.Dec()
-			indenter.Add("}\n")
+			f.Dec()
+			f.Add("})")
+
+			return f.String() //endBlock(data, 0)
 		}
 		return
 	case "Prefix":
 		front := node.Children.Front().Value.(*Node)
 		if node.Children.Len() == 1 {
-			p.helper(front)
+			return p.helper(front)
 		} else {
-			indenter.Add("/* prefix: " + strings.TrimSpace(node.Data) + " */\n{\n")
-			indenter.Inc()
-			indenter.Add("pos := p.Pos()\n")
-			p.helper(node.Children.Back().Value.(*Node))
-			indenter.Add("p.data.Seek(int64(pos), 0)\n")
-			switch front.Name {
-			case "NOT":
-				indenter.Add("/* NOT */\naccept = !accept\n")
-			case "AND":
-				// Don't need to do anything for and
-			default:
-				indenter.Add("NOT_IMPLEMENTED_" + front.Name)
+			exp := p.helper(node.Children.Back().Value.(*Node))
+			if inlinePrefix {
+				startBlock("prefix: " + strings.TrimSpace(node.Data))
+				addLine("ret := " + makeComplexReturnCall(exp) + "\n")
+				switch front.Name {
+				case "NOT":
+					return endBlock("!ret", ACTION_REJECT_ADD)
+				case "AND":
+					return endBlock("ret", ACTION_REJECT_ADD)
+				}
+			} else {
+				switch front.Name {
+				case "NOT":
+					return "p.Not(" + makeComplexReturn(exp) + ")"
+				case "AND":
+					return "p.And(" + makeComplexReturn(exp) + ")"
+				}
 			}
-			indenter.Dec()
-			indenter.Add("}\n")
 		}
-		return
+		panic("Shouldn't reach this: " + front.Name)
 	case "Suffix":
 		if node.Children.Len() == 1 {
-			p.helper(node.Children.Front().Value.(*Node))
+			return p.helper(node.Children.Front().Value.(*Node))
 		} else {
 			back := node.Children.Back().Value.(*Node)
-			indenter.Add("/* Suffix: " + strings.TrimSpace(node.Data) + " */\n{\n")
-			indenter.Inc()
-			label := labeler.NewLabel()
-			switch back.Name {
-			case "PLUS":
-				indenter.Add("pos := p.Pos()\n")
-				indenter.Add("/* + */\n")
-				p.helper(node.Children.Front().Value.(*Node))
-				indenter.Add("if (!accept) { p.data.Seek(int64(pos), 0); goto " + label + " }\n\n")
-				fallthrough
-			case "STAR":
-				indenter.Add("/* + / * */\n")
-				indenter.Add("for accept {\n")
-				indenter.Inc()
+
+			if !inlineSuffix {
+				exp := makeComplexReturn(p.helper(node.Children.Front().Value.(*Node)))
+
+				switch back.Name {
+				case "PLUS":
+					f.Add("p.OneOrMore(")
+					//					f.Inc()
+					f.Add(exp + ")")
+				case "STAR":
+					f.Add("p.ZeroOrMore(")
+					//					f.Inc()
+					f.Add(exp + ")")
+				case "QUESTION":
+					f.Add("p.Maybe(")
+					//					f.Inc()
+					f.Add(exp + ")")
+				}
+				return f.String()
+			} else {
+				startBlock("Suffix: " + strings.TrimSpace(node.Data))
+				exp := makeComplexReturnCall(p.helper(node.Children.Front().Value.(*Node)))
+
+				switch back.Name {
+				case "PLUS":
+					addLine("/* + */\n")
+					addReturn(exp, ACTION_REJECT_IF_FALSE)
+					fallthrough
+				case "STAR":
+					addLine("/* + / * */\n")
+					addLine("for " + exp + " {\n")
+					addLine("}\n")
+				case "QUESTION":
+					addLine(exp + "\n")
+				}
+				addLine("/* ? / * / + */\n")
+				return endBlock("", ACTION_ACCEPT_ALWAYS)
 			}
-			p.helper(node.Children.Front().Value.(*Node))
-			switch back.Name {
-			case "STAR", "PLUS":
-				indenter.Dec()
-				indenter.Add("}\n")
-			}
-			indenter.Add("/* ? / * / + */\naccept = true\n")
-			if back.Name == "PLUS" {
-				indenter.Add(label + ":\n")
-			}
-			indenter.Dec()
-			indenter.Add("}\n")
 		}
 		return
 	case "Primary":
@@ -800,42 +994,32 @@ func (p *PegParser) helper(node *Node) {
 			r, ok := convMap[fd]
 			alreadyInlined := visitedMap[fd]
 			if ok && enableInlining && !alreadyInlined {
-				indenter.Add("/* inlined " + fd + " */\n{\n")
-				indenter.Inc()
-
 				// just to prevent an inline from inlining itself
 				visitedMap[fd] = true
-				p.helper(r)
+				data := p.helper(r)
 				visitedMap[fd] = false
-				/*
-					indenter.Add(r + "\n")
-				*/
-				indenter.Dec()
-				indenter.Add("}\n")
+				return data
 			} else {
-				indenter.Add("accept = p.")
-				p.helper(front)
-				indenter.Add("()\n")
+				//startBlock("Literal: " + front.Data)
+				return "p." + p.helper(front) + "()"
 			}
-			return
 		} else if front.Name == "OPEN" {
-			p.helper(node.Children.Front().Next().Value.(*Node))
-			return
+			return p.helper(node.Children.Front().Next().Value.(*Node))
+		} else if front.Name == "Literal" {
+			//startBlock("Literal: " + front.Data)
+			return p.helper(front)
 		}
 	case "Spacing", "Space":
 		// ignore
 	default:
-		indenter.Add("\n\n-----------------------------------------------------\n" + node.Name + ", " + node.Data + "-----------------------------------------------------\n")
+		return "\n\n-----------------------------------------------------\n" + node.Name + ", " + node.Data + "-----------------------------------------------------\n"
 	}
 	//	indenter.Inc()
 	for n := node.Children.Front(); n != nil; n = n.Next() {
-		p.helper(n.Value.(*Node))
+		retstring += p.helper(n.Value.(*Node))
 	}
+	return
 	//	indenter.Dec()
-}
-
-func (p *PegParser) RootNode() *Node {
-	return p.currentNode.Children.Front().Value.(*Node)
 }
 
 func (p *PegParser) Dump() {
@@ -847,165 +1031,83 @@ func (p *PegParser) Dump() {
 				id := node.Children.Front().Value.(*Node)
 				exp := node.Children.Back().Value.(*Node)
 
-				indenter = CodeFormatter{}
-				p.helper(id)
-				defName := indenter.String()
+				defName := p.helper(id)
 				convMap[defName] = exp
 			}
 		}
 	}
+	imports := ""
+	if inlineClass {
+		imports += "\t\"strings\"\n"
+	}
+	if addDebugLogging {
+		imports += "\t\"log\"\n"
+	}
 	output := fmt.Sprintln(`package parser
+
 import (
-	"strings"
-)
+` + imports + `)
 
 type PegParser2 struct {
 	Parser
-}`)
+}
+`)
+	if addDebugLogging {
+		output += "var fm CodeFormatter\n\n"
+	}
 
 	for n := rootNode.Children.Front(); n != nil; n = n.Next() {
 		node := n.Value.(*Node)
 		if node.Name == "Definition" {
 			id := node.Children.Front().Value.(*Node)
 			exp := node.Children.Back().Value.(*Node)
-			indenter = CodeFormatter{}
-			p.helper(exp)
-			data := indenter.String()
-			indenter = CodeFormatter{}
-			p.helper(id)
-			defName := indenter.String()
+			data := p.helper(exp)
+			defName := p.helper(id)
 			//			fmt.Println(node)
-			indenter = CodeFormatter{}
-			indenter.Inc()
-			indenter.Add("func (p *PegParser2) " + defName + "() bool {\n")
 
-			indenter.Add("accept := true\n")
-			indenter.Add(data)
-			indenter.Add("return accept\n")
+			indenter = CodeFormatter{}
+			indenter.Add("func (p *PegParser2) " + defName + "() bool {\n")
+			indenter.Inc()
+			comment := "/* " + strings.Replace(strings.TrimSpace(node.Data), "\n", "\n * ", -1)
+			indenter.Add(comment)
+			if strings.ContainsRune(comment, '\n') {
+				indenter.Add("\n")
+			}
+			indenter.Add(" */\n")
+
+			if addDebugLogging {
+				indenter.Add(`var (
+	pos = p.Pos()
+	l   = p.data.Len()
+)
+`)
+				indenter.Add(`log.Println(fm.level + "` + defName + " entered\")\n")
+				indenter.Add("fm.Inc()\n")
+			}
+			if addNodes {
+				data = "p.addNode(" + makeComplexReturn(data) + ", \"" + defName + "\")"
+			}
+			if addDebugLogging {
+				indenter.Add("res := " + data)
+				indenter.Add("\nfm.Dec()\n")
+				indenter.Add(`if !res && p.Pos() != pos {
+	log.Fatalln("` + defName + `", res, ", ", pos, ", ", p.Pos())
+}
+p2 := p.Pos()
+data := make([]byte, p2-pos)
+p.data.Seek(int64(pos), 0)
+p.data.Read(data)
+p.data.Seek(int64(p2), 0)
+`)
+				indenter.Add("log.Println(fm.level+\"" + defName + ` returned: ", res, ", ", pos, ", ", p.Pos(), ", ", l, string(data))` + "\n")
+				indenter.Add(makeReturn("res\n"))
+			} else {
+				indenter.Add(makeReturn(data + "\n"))
+			}
 			indenter.Dec()
 			indenter.Add("}\n")
 			output += indenter.String()
-			// if enableInlining {
-			// 	break
-			// }
-			//			break
 		}
 	}
 	ioutil.WriteFile("./parser2.go", []byte(output), 0644)
 }
-
-// if __name__ == "__main__":
-//     f = open("peg.peg")
-//     peg = f.read()
-//     f.close()
-
-//     parser = PegPegParser(peg)
-//     parser.Grammar()
-
-//     _indent = "\t\t"
-//     def get_data(node):
-//         global _indent
-//         name = node.name
-//         names = {"PLUS": "func() bool { return p.OneOrMore",
-//                  "STAR": "func() bool { return p.ZeroOrMore",
-//                  "QUESTION": "func() bool { return p.Maybe",
-//                  "NOT": "func() bool { return p.Not",
-//                  "AND": "func() bool { return p.And"
-//                  }
-//         nodes = node.nodes
-//         if len(nodes) > 0 and nodes[-1].name == "Spacing":
-//             nodes = nodes[:-1]
-
-//         if name == "OPEN" or name == "CLOSE":
-//             return ""
-//         elif name == "Identifier":
-//             if len(node.nodes) > 0 and node.nodes[-1].name == "Spacing":
-//                 return "p." + parser._PegParserdata[node.pos:node.nodes[-1].pos]
-//             return "p." + node.data
-//         elif name == "Literal":
-//             return "func() bool { return p.Next(" + node.data.replace("\"", "\\\"").strip()  + ")"
-//         elif name == "Range":
-//             if len(node.nodes) == 2:
-//                 return "func() bool { return p.InRange('%s', '%s')" % (node.nodes[0].data, node.nodes[1].data)
-//             else:
-//                 return node.data
-//         elif name == "Prefix":
-//             if len(node.nodes) == 1:
-//                 return get_data(node.nodes[0})
-//             else:
-//                 return names[node.nodes[0].name] + "(" + get_data(node.nodes[1}) + ")"
-//         elif name == "Suffix":
-//             data = get_data(node.nodes[0})
-//             if len(node.nodes) > 1:
-//                 data = names[node.nodes[1].name] + "(" + data + ")"
-//             return data
-//         elif name == "Sequence":
-//             if len(node.nodes) == 1:
-//                 return get_data(node.nodes[0})
-//             data = ""
-//             _indent += "\t"
-//             for n in node.nodes:
-//                 if len(data) > 0:
-//                     data += ","
-//                 data += "\n%s%s" % (_indent.replace("\t", "    "), get_data(n))
-//             _indent = _indent[:-1]
-//             return "func() bool { return p.NeedAll([]func() bool {" + data + "})"
-//         elif name == "DOT":
-//             return "func() bool { return p.AnyChar()"
-//         elif name == "Expression":
-//             if len(node.nodes) == 1:
-//                 return get_data(node.nodes[0})
-//             else:
-//                 data = ""
-//                 _indent += "\t"
-//                 for i in range(len(node.nodes)):
-//                     if (i & 1) == 0:
-//                         if len(data) > 0:
-//                             data += ","
-//                         data += "\n%s%s" % (_indent.replace("\t", "    "), get_data(node.nodes[i}))
-//                 _indent = _indent[:-1]
-//                 data = "func() bool { return p.NeedOne([]func() bool {" + data + "})"
-//                 return data
-//         elif name == "Class":
-//             data = []
-//             others = ""
-//             l = 0
-
-//             for n in nodes:
-//                 sub = get_data(n).replace("\\", "\\\\").replace("\"", "\\\"")
-//                 if not sub.startswith("lambda"):
-//                     others += sub
-//                 else:
-//                     data.append(sub)
-//                     l++
-
-//             if len(others) > 0:
-//                 l++
-//                 data.append("%sfunc() bool { return p.InSet(\"%s\")" % ("\n%s" % _indent.replace("\t", "    ") if len(nodes) != 1 else "", others))
-
-//             if len(data) != 1:
-//                 _indent += "\t"
-
-//             s = ",\n%s" % (_indent.replace("\t", "    "))
-//             data = s.join(data)
-
-//             if l == 1:
-//                 return data
-//             else:
-//                 _indent = _indent[:-1]
-//                 return "func() bool { return p.NeedOne([]func() bool {" + data + "})"
-//         r = ""
-//         for n in nodes:
-//             r += get_data(n)
-//         return r
-
-//     f = open(__file__)
-//     data = f.read()
-//     f.close()
-
-//     print data[:data.find("class PegPegParser")].strip()
-//     print "\nclass PegPegParser(PegParser):"
-//     for node in parser.currentNode.nodes[0].nodes:
-//         if node.name == "Definition":
-//             print "    @addNode\n    def %s(self):\n        %s\n" % (get_data(node.nodes[0})[5:], get_data(node.nodes[2}).replace("func() bool { return ", "return ", 1))
-//     print data[data.find("""if __name__ == "__main__":"""):],
