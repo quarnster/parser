@@ -1,0 +1,4 @@
+Expr    <- Sum
+Sum     <- Product (('+' / '-') Product)*
+Product <- Value (('*' / '/') Value)*
+Value   <- [0-9]+ / '(' Expr ')'
