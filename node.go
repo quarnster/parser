@@ -23,7 +23,6 @@ freely, subject to the following restrictions:
 package parser
 
 import (
-	"container/list"
 	"fmt"
 )
 
@@ -34,21 +33,17 @@ type Range struct {
 type Node struct {
 	Range    Range
 	Name     string
-	Children list.List
+	Children []*Node
 	p        *Parser
 }
 
 func (n *Node) format(cf *CodeFormatter) {
-	if n.Children.Len() == 0 {
-		cf.Add(fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data()))
-	} else {
-		cf.Add(fmt.Sprintf("%d-%d: \"%s\"\n", n.Range.Start, n.Range.End, n.Name))
-		cf.Inc()
-		for i := n.Children.Front(); i != nil; i = i.Next() {
-			i.Value.(*Node).format(cf)
-		}
-		cf.Dec()
+	cf.Add(fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data()))
+	cf.Inc()
+	for _, child := range n.Children {
+		child.format(cf)
 	}
+	cf.Dec()
 }
 
 func (n *Node) Data() string {
@@ -64,17 +59,27 @@ func (n *Node) String() string {
 func (n *Node) Cleanup(pos, end int) *Node {
 	var popped Node
 	popped.Range = Range{pos, end}
-	for i := n.Children.Front(); i != nil; {
-		next := i.Next()
-		node := i.Value.(*Node)
+	for i := len(n.Children) - 1; i >= 0; i-- {
+		//			fmt.Println("i:", i, ", l:", len(n.Children))
+		node := n.Children[i]
 		if node.Range.Start >= pos || node.Range.End > pos {
-			popped.Append(n.Children.Remove(i).(*Node))
+			popped.Append(node)
+			if i > 0 {
+				n.Children = n.Children[:i]
+			} else {
+				n.Children = n.Children[:0]
+			}
+		} else {
+			break
 		}
-		i = next
+	}
+	// Since we pushed from the back, reverse the list
+	for i, j := 0, len(popped.Children)-1; i < j; i, j = i+1, j-1 {
+		popped.Children[i], popped.Children[j] = popped.Children[j], popped.Children[i]
 	}
 	return &popped
 }
 
 func (n *Node) Append(child *Node) {
-	n.Children.PushBack(child)
+	n.Children = append(n.Children, child)
 }

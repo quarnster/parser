@@ -2,8 +2,9 @@ package parser
 
 import (
 	"bytes"
-	"container/list"
+	//	"encoding/json"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -54,6 +55,7 @@ func TestParser(t *testing.T) {
 				data2 := []byte(GenerateParser(p.RootNode(), &GoGenerator{Name: "PegParser", AddDebugLogging: false}))
 				if cmp := bytes.Compare(data, data2); cmp != 0 {
 					d, _ := diff(data, data2)
+					log.Println(p.RootNode())
 					t.Fatalf("Generated parser isn't equal to self: %d\n%s\n", cmp, string(d))
 				}
 			}
@@ -70,11 +72,39 @@ func BenchmarkParser(b *testing.B) {
 		for i := 0; i < b.N; i++ { //use b.N for looping
 			p.data.Seek(0, 0)
 			p.stack.Clear()
-			p.currentNode.Children = list.List{}
+			p.currentNode = Node{}
 			p.Grammar()
 		}
 	}
 }
+
+//http://json-test-suite.googlecode.com/files/sample.zip
+func BenchmarkJsonParser(b *testing.B) {
+	var p JSONParser
+	if data, err := ioutil.ReadFile("./sample.json"); err != nil {
+		b.Fatalf("%s", err)
+	} else {
+		p.data = strings.NewReader(string(data))
+		for i := 0; i < b.N; i++ { //use b.N for looping
+			p.data.Seek(0, 0)
+			p.stack.Clear()
+			p.currentNode = Node{}
+			p.JsonFile()
+		}
+	}
+}
+
+// func BenchmarkJsonParser2(b *testing.B) {
+// 	if data, err := ioutil.ReadFile("./sample.json"); err != nil {
+// 		b.Fatalf("%s", err)
+// 	} else {
+// 		var any interface{}
+// 		for i := 0; i < b.N; i++ { //use b.N for looping
+// 			json.Unmarshal(data, &any)
+// 		}
+// 		b.Log(any)
+// 	}
+// }
 
 // func TestParser2(t *testing.T) {
 // 	var p PegParser2

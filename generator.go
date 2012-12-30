@@ -157,8 +157,8 @@ func (g *GoGenerator) Finish() string {
 }
 
 func (g *GoGenerator) MakeParserFunction(node *Node) {
-	id := node.Children.Front().Value.(*Node)
-	exp := node.Children.Back().Value.(*Node)
+	id := node.Children[0]
+	exp := node.Children[len(node.Children)-1]
 	data := helper(g, exp)
 	defName := helper(g, id)
 
@@ -309,11 +309,10 @@ func helper(gen Generator, node *Node) (retstring string) {
 	case "Class":
 		others := ""
 		var exps []string
-		for n := node.Children.Front(); n != nil; n = n.Next() {
-			child := n.Value.(*Node)
+		for _, child := range node.Children {
 			if child.Name == "Range" {
-				if child.Children.Len() == 2 {
-					exps = append(exps, gen.CheckInRange(child.Children.Front().Value.(*Node).Data(), child.Children.Back().Value.(*Node).Data()))
+				if len(child.Children) == 2 {
+					exps = append(exps, gen.CheckInRange(child.Children[0].Data(), child.Children[1].Data()))
 				} else {
 					others += child.Data()
 				}
@@ -334,29 +333,26 @@ func helper(gen Generator, node *Node) (retstring string) {
 	case "DOT":
 		return gen.CheckAnyChar()
 	case "Identifier":
-		back := node.Children.Back().Value.(*Node)
+		back := node.Children[len(node.Children)-1]
 		data := node.Data()
 		if back.Name == "Spacing" {
 			data = data[:strings.LastIndex(data, back.Data())]
 		}
 		return data
 	case "Literal":
-		back := node.Children.Back().Value.(*Node)
+		back := node.Children[len(node.Children)-1]
 		data := node.Data()
 		if back.Name == "Spacing" {
 			data = data[:strings.LastIndex(data, back.Data())]
 		}
 		return gen.CheckNext(data)
 	case "Expression":
-		if node.Children.Len() == 1 {
-			return helper(gen, node.Children.Front().Value.(*Node))
+		if len(node.Children) == 1 {
+			return helper(gen, node.Children[0])
 		} else {
 			g := gen.BeginGroup(false)
-			i := 0
-			for n := node.Children.Front(); n != nil; n = n.Next() {
-				i++
-				child := n.Value.(*Node)
-				if i&1 == 0 {
+			for i, child := range node.Children {
+				if i&1 != 0 {
 					continue
 				}
 				g.Add(makeComplexReturn(helper(gen, child)))
@@ -365,22 +361,22 @@ func helper(gen Generator, node *Node) (retstring string) {
 		}
 		return
 	case "Sequence":
-		if node.Children.Len() == 1 {
-			return helper(gen, node.Children.Front().Value.(*Node))
+		if len(node.Children) == 1 {
+			return helper(gen, node.Children[0])
 		} else {
 			g := gen.BeginGroup(true)
-			for n := node.Children.Front(); n != nil; n = n.Next() {
-				g.Add(makeComplexReturn(helper(gen, n.Value.(*Node))))
+			for _, child := range node.Children {
+				g.Add(makeComplexReturn(helper(gen, child)))
 			}
 			return gen.EndGroup(g)
 		}
 		return
 	case "Prefix":
-		front := node.Children.Front().Value.(*Node)
-		if node.Children.Len() == 1 {
+		front := node.Children[0]
+		if len(node.Children) == 1 {
 			return helper(gen, front)
 		} else {
-			exp := helper(gen, node.Children.Back().Value.(*Node))
+			exp := helper(gen, node.Children[len(node.Children)-1])
 			switch front.Name {
 			case "NOT":
 				return gen.AssertNot(makeComplexReturn(exp))
@@ -390,11 +386,11 @@ func helper(gen Generator, node *Node) (retstring string) {
 		}
 		panic("Shouldn't reach this: " + front.Name)
 	case "Suffix":
-		if node.Children.Len() == 1 {
-			return helper(gen, node.Children.Front().Value.(*Node))
+		if len(node.Children) == 1 {
+			return helper(gen, node.Children[0])
 		} else {
-			back := node.Children.Back().Value.(*Node)
-			exp := makeComplexReturn(helper(gen, node.Children.Front().Value.(*Node)))
+			back := node.Children[len(node.Children)-1]
+			exp := makeComplexReturn(helper(gen, node.Children[0]))
 			switch back.Name {
 			case "PLUS":
 				return gen.OneOrMore(exp)
@@ -406,13 +402,13 @@ func helper(gen Generator, node *Node) (retstring string) {
 		}
 		panic("Shouldn't reach this")
 	case "Primary":
-		front := node.Children.Front().Value.(*Node)
+		front := node.Children[0]
 
 		if front.Name == "Identifier" {
 			return makeCall(gen.MakeParserCall(helper(gen, front)))
 		} else if front.Name == "OPEN" {
-			return helper(gen, node.Children.Front().Next().Value.(*Node))
-		} else if front.Name == "Literal" {
+			return helper(gen, node.Children[1])
+		} else /*if front.Name == "Literal" */ {
 			return helper(gen, front)
 		}
 	case "Spacing", "Space":
@@ -420,16 +416,15 @@ func helper(gen Generator, node *Node) (retstring string) {
 	default:
 		return "\n\n-----------------------------------------------------\n" + node.Name + ", " + node.Data() + "-----------------------------------------------------\n"
 	}
-	for n := node.Children.Front(); n != nil; n = n.Next() {
-		retstring += helper(gen, n.Value.(*Node))
+	for _, n := range node.Children {
+		retstring += helper(gen, n)
 	}
 	return
 }
 
 func GenerateParser(rootNode *Node, gen Generator) string {
 	gen.Begin()
-	for n := rootNode.Children.Front(); n != nil; n = n.Next() {
-		node := n.Value.(*Node)
+	for _, node := range rootNode.Children {
 		if node.Name == "Definition" {
 			gen.MakeParserFunction(node)
 		}

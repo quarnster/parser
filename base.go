@@ -53,6 +53,7 @@ func (i *IntStack) Clear() {
 func (p *Parser) addNode(add func() bool, name string) bool {
 	start := p.Pos()
 	shouldAdd := add()
+	p.currentNode.p = p
 	// Remove any danglers
 	p.currentNode.Cleanup(p.Pos(), -1)
 
@@ -90,7 +91,7 @@ func (p *Parser) Data(start, end int) string {
 }
 
 func (p *Parser) RootNode() *Node {
-	return p.currentNode.Children.Front().Value.(*Node)
+	return p.currentNode.Children[0]
 }
 
 func (p *Parser) Pos() int {

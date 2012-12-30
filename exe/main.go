@@ -21,16 +21,15 @@ func main() {
 		if !p.Grammar() {
 			log.Fatalf("Didn't parse correctly\n")
 		} else {
-			back := p.RootNode().Children.Back().Value.(*parser.Node)
+			back := p.RootNode().Children[len(p.RootNode().Children)-1]
 			if back.Name != "EndOfFile" {
 				log.Println("File didn't finish parsing")
 				log.Println(p.RootNode())
 			}
 			parserEntry := "DoesntExist"
-			for n := p.RootNode().Children.Front(); n != nil; n = n.Next() {
-				node := n.Value.(*parser.Node)
+			for _, node := range p.RootNode().Children {
 				if node.Name == "Definition" {
-					parserEntry = node.Children.Front().Value.(*parser.Node).Data()
+					parserEntry = node.Children[0].Data()
 					break
 				}
 			}
