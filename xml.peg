@@ -1,13 +1,16 @@
 
 XmlFile    <- XmlStartTag? TagPair+
-XmlStartTag <- Junk* '<?xml' (!'?>' .)+ '?>'
-TagPair    <- Tag TagPair* EndTag?
-Tag        <- Junk* '<' Identifier (Spacing* Attribute)* '/'? '>' Junk*
-EndTag     <- Junk* '</' Identifier '>' Junk*
+XmlStartTag <- junk* '<?xml' (!'?>' .)+ '?>'
+TagPair    <- tag TagPair* endTag?
+tag        <- junk* Tag junk*
+Tag        <- '<' Identifier (spacing* Attribute spacing*)* '/'? '>'
+endTag     <- junk* EndTag junk*
+EndTag     <- '</' Identifier '>'
 
-Attribute  <- Identifier '=' Value Spacing*
-Value      <- '"' (!'"' .)* '"'
-Spacing    <- [ \t\n\r]+
+Attribute  <- Identifier '=' value
+value      <- '"' Value '"'
+Value      <- (!'"' .)*
+spacing    <- [ \t\n\r]+
 Identifier <- [a-zA-z:]+
-Comment    <- '<!--' (!'-->' .)* '-->'
-Junk       <- (![</>] .)+ / Comment
+comment    <- '<!--' (!'-->' .)* '-->'
+junk       <- (![</>] .)+ / comment

@@ -30,7 +30,7 @@ func main() {
 			for n := p.RootNode().Children.Front(); n != nil; n = n.Next() {
 				node := n.Value.(*parser.Node)
 				if node.Name == "Definition" {
-					parserEntry = node.Children.Front().Value.(*parser.Node).Data
+					parserEntry = node.Children.Front().Value.(*parser.Node).Data()
 					break
 				}
 			}
@@ -39,7 +39,10 @@ func main() {
 				log.Fatalln(err)
 			}
 			defer os.RemoveAll(dir)
-			if err := ioutil.WriteFile(filepath.Join(".", "testparser.go"), []byte(parser.GenerateParser(p.RootNode(), &parser.GoGenerator{Name: "Test", AddDebugLogging: true})), 0644); err != nil {
+			if err := ioutil.WriteFile(filepath.Join(".", "testparser.go"), []byte(parser.GenerateParser(p.RootNode(), &parser.GoGenerator{
+				Name:            "Test",
+				AddDebugLogging: true,
+			})), 0644); err != nil {
 				log.Fatalln(err)
 			}
 
@@ -50,7 +53,6 @@ import (
 	"log"
 	"parser"
 )
-
 func main() {
 	p := parser.Test{}
 	if data, err := ioutil.ReadFile("`+os.Args[2]+`"); err != nil {

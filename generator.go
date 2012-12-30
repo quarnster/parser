@@ -94,16 +94,27 @@ type Generator interface {
 	Finish() string
 }
 
+type CustomAction struct {
+	Name   string
+	Action string
+}
 type GoGenerator struct {
 	output          string
 	AddDebugLogging bool
 	Name            string
+	CustomActions   []CustomAction
+	ParserVariables []string
+	Imports         []string
 }
 
 func (g *GoGenerator) Begin() {
 	imports := ""
+	impList := g.Imports
 	if g.AddDebugLogging {
-		imports += "\nimport (\n\t\"log\"\n)\n"
+		impList = append(impList, "log")
+	}
+	if len(impList) > 0 {
+		imports += "\nimport (\n\t\"" + strings.Join(impList, "\"\n\t\"") + "\")\n"
 	}
 	g.output = `/*
 Copyright (c) 2012 Fredrik Ehnbom
@@ -128,7 +139,9 @@ freely, subject to the following restrictions:
    distribution.
 */
 `
-	g.output += fmt.Sprintln("package parser\n" + imports + "\ntype " + g.Name + " struct {\n\tParser\n}\n")
+	members := g.ParserVariables
+	members = append(members, "Parser")
+	g.output += fmt.Sprintln("package parser\n" + imports + "\ntype " + g.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
 	if g.AddDebugLogging {
 		g.output += "var fm CodeFormatter\n\n"
 	}
@@ -152,7 +165,7 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 	indenter := CodeFormatter{}
 	indenter.Add("func (p *" + g.Name + ") " + defName + "() bool {\n")
 	indenter.Inc()
-	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data), "\n", "\n// ", -1) + "\n")
+	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
 
 	if g.AddDebugLogging {
 		indenter.Add(`var (
@@ -163,7 +176,18 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 		indenter.Add(`log.Println(fm.level + "` + defName + " entered\")\n")
 		indenter.Add("fm.Inc()\n")
 	}
-	data = "p.addNode(" + g.MakeFunction("return "+data) + ", \"" + defName + "\")"
+	defaultAction := defName[:1] == strings.ToUpper(defName[:1])
+	for i := range g.CustomActions {
+		if defName == g.CustomActions[i].Name {
+			defaultAction = false
+			data = fmt.Sprintf(g.CustomActions[i].Action, g.MakeFunction(g.Return(data)))
+			break
+		}
+	}
+	if defaultAction {
+		data = g.MakeFunction(g.Return(data))
+		data = "p.addNode(" + data + ", \"" + defName + "\")"
+	}
 	if g.AddDebugLogging {
 		indenter.Add("res := " + data)
 		indenter.Add("\nfm.Dec()\n")
@@ -289,9 +313,9 @@ func helper(gen Generator, node *Node) (retstring string) {
 			child := n.Value.(*Node)
 			if child.Name == "Range" {
 				if child.Children.Len() == 2 {
-					exps = append(exps, gen.CheckInRange(child.Children.Front().Value.(*Node).Data, child.Children.Back().Value.(*Node).Data))
+					exps = append(exps, gen.CheckInRange(child.Children.Front().Value.(*Node).Data(), child.Children.Back().Value.(*Node).Data()))
 				} else {
-					others += child.Data
+					others += child.Data()
 				}
 			}
 		}
@@ -311,16 +335,16 @@ func helper(gen Generator, node *Node) (retstring string) {
 		return gen.CheckAnyChar()
 	case "Identifier":
 		back := node.Children.Back().Value.(*Node)
-		data := node.Data
+		data := node.Data()
 		if back.Name == "Spacing" {
-			data = data[:strings.LastIndex(data, back.Data)]
+			data = data[:strings.LastIndex(data, back.Data())]
 		}
 		return data
 	case "Literal":
 		back := node.Children.Back().Value.(*Node)
-		data := node.Data
+		data := node.Data()
 		if back.Name == "Spacing" {
-			data = data[:strings.LastIndex(data, back.Data)]
+			data = data[:strings.LastIndex(data, back.Data())]
 		}
 		return gen.CheckNext(data)
 	case "Expression":
@@ -394,7 +418,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 	case "Spacing", "Space":
 		// ignore
 	default:
-		return "\n\n-----------------------------------------------------\n" + node.Name + ", " + node.Data + "-----------------------------------------------------\n"
+		return "\n\n-----------------------------------------------------\n" + node.Name + ", " + node.Data() + "-----------------------------------------------------\n"
 	}
 	for n := node.Children.Front(); n != nil; n = n.Next() {
 		retstring += helper(gen, n.Value.(*Node))

@@ -1,4 +1,11 @@
-Expr    <- Sum
-Sum     <- Product (('+' / '-') Product)*
-Product <- Value (('*' / '/') Value)*
-Value   <- [0-9]+ / '(' Expr ')'
+Expr    <- expr
+expr    <- sum
+
+sum <- Sum / product
+Sum     <- product (('+' / '-') product)
+product <- Product / grouping
+Product <- grouping (('*' / '/') grouping)
+
+grouping <- Value / '(' expr ')'
+Value   <- [0-9]+
+

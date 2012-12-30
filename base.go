@@ -59,13 +59,7 @@ func (p *Parser) addNode(add func() bool, name string) bool {
 	node := p.currentNode.Cleanup(start, p.Pos())
 	node.Name = name
 	if shouldAdd {
-		end := p.Pos()
-		data := make([]byte, end-start)
-		p.data.Seek(int64(start), 0)
-		if _, err := p.data.Read(data); err == nil {
-			node.Data = string(data)
-		}
-		p.data.Seek(int64(end), 0)
+		node.p = p
 		p.currentNode.Append(node)
 	}
 	return shouldAdd
@@ -84,6 +78,15 @@ func (p *Parser) SetData(data string) {
 	p.currentNode = Node{}
 	p.stack = IntStack{}
 	p.data = strings.NewReader(data)
+}
+
+func (p *Parser) Data(start, end int) string {
+	p.push()
+	defer p.Reject()
+	p.data.Seek(int64(start), 0)
+	b := make([]byte, end-start)
+	p.data.Read(b)
+	return string(b)
 }
 
 func (p *Parser) RootNode() *Node {

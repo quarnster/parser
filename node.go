@@ -35,17 +35,22 @@ type Node struct {
 	Range    Range
 	Name     string
 	Children list.List
-	Data     string
+	p        *Parser
 }
 
 func (n *Node) format(cf *CodeFormatter) {
-	cf.Add(fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data))
+	cf.Add(fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data()))
 	cf.Inc()
 	for i := n.Children.Front(); i != nil; i = i.Next() {
 		i.Value.(*Node).format(cf)
 	}
 	cf.Dec()
 }
+
+func (n *Node) Data() string {
+	return n.p.Data(n.Range.Start, n.Range.End)
+}
+
 func (n *Node) String() string {
 	cf := CodeFormatter{}
 	n.format(&cf)
