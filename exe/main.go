@@ -41,7 +41,7 @@ func main() {
 			defer os.RemoveAll(dir)
 			if err := ioutil.WriteFile(filepath.Join(".", "testparser.go"), []byte(parser.GenerateParser(p.RootNode(), &parser.GoGenerator{
 				Name:            "Test",
-				AddDebugLogging: true,
+				AddDebugLogging: false,
 			})), 0644); err != nil {
 				log.Fatalln(err)
 			}
@@ -62,7 +62,11 @@ func main() {
 		if !p.`+parserEntry+`() {
 			log.Fatalf("Didn't parse correctly\n")
 		} else {
-			log.Println(p.RootNode())
+			root := p.RootNode()
+			log.Println(root)
+			if root.Range.End != len(data) {
+				log.Println("Parsing didn't finish")
+			}
 		}
 	}
 }

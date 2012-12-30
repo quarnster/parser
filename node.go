@@ -39,12 +39,16 @@ type Node struct {
 }
 
 func (n *Node) format(cf *CodeFormatter) {
-	cf.Add(fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data()))
-	cf.Inc()
-	for i := n.Children.Front(); i != nil; i = i.Next() {
-		i.Value.(*Node).format(cf)
+	if n.Children.Len() == 0 {
+		cf.Add(fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data()))
+	} else {
+		cf.Add(fmt.Sprintf("%d-%d: \"%s\"\n", n.Range.Start, n.Range.End, n.Name))
+		cf.Inc()
+		for i := n.Children.Front(); i != nil; i = i.Next() {
+			i.Value.(*Node).format(cf)
+		}
+		cf.Dec()
 	}
-	cf.Dec()
 }
 
 func (n *Node) Data() string {
