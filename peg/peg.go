@@ -30,6 +30,7 @@ type Peg struct {
 	parser.Parser
 }
 
+
 const (
 	nilrune = '\u0000'
 )
@@ -106,9 +107,6 @@ func p_Not(p *Peg, exp func(*Peg) bool) bool {
 
 func p_AnyChar(p *Peg) bool {
 	return p.AnyChar()
-	/*
-	   return p.AnyChar()
-	*/
 }
 
 func p_InRange(p *Peg, c1, c2 rune) bool {
@@ -118,6 +116,7 @@ func p_InRange(p *Peg, c1, c2 rune) bool {
 func p_InSet(p *Peg, dataset string) bool {
 	return p.InSet(dataset)
 }
+
 func p_Next(p *Peg, n1 string) bool {
 	return p.Next(n1)
 }

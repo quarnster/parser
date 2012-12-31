@@ -175,8 +175,8 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 
 	if g.AddDebugLogging {
 		indenter.Add(`var (
-    pos = p.Pos()
-    l   = p.ParserData.Len()
+	pos = p.Pos()
+	l   = p.ParserData.Len()
 )
 `)
 		indenter.Add(`log.Println(fm.level + "` + defName + " entered\")\n")
@@ -198,7 +198,7 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 		indenter.Add("res := " + data)
 		indenter.Add("\nfm.Dec()\n")
 		indenter.Add(`if !res && p.Pos() != pos {
-    log.Fatalln("` + defName + `", res, ", ", pos, ", ", p.Pos())
+	log.Fatalln("` + defName + `", res, ", ", pos, ", ", p.Pos())
 }
 p2 := p.Pos()
 data := make([]byte, p2-pos)
