@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -84,7 +85,7 @@ func (g *GoGenerator2) MakeParserCall(value string) string {
 	return "p_" + value
 }
 func (g *GoGenerator2) CheckInRange(a, b string) string {
-	return "p_InRange(p, '" + a + "', '" + b + "')"
+	return "p.InRange('" + a + "', '" + b + "')"
 }
 
 func (g *GoGenerator2) CheckInSet(a string) string {
@@ -93,16 +94,16 @@ func (g *GoGenerator2) CheckInSet(a string) string {
 	a = strings.Replace(a, "\n", "\\n", -1)
 	a = strings.Replace(a, "\r", "\\r", -1)
 	a = strings.Replace(a, "\"", "\\\"", -1)
-	return "p_InSet(p, \"" + a + "\")"
+	return "p.InSet(\"" + a + "\")"
 }
 
 func (g *GoGenerator2) CheckAnyChar() string {
-	return "p_AnyChar(p)"
+	return "p.AnyChar()"
 }
 
 func (g *GoGenerator2) CheckNext(a string) string {
 	a = "\"" + strings.Replace(a[1:len(a)-1], "\"", "\\\"", -1) + "\""
-	return "p_Next(p, " + a + ")"
+	return "p.Next(" + a + ")"
 }
 
 func (g *GoGenerator2) AssertNot(a string) string {
@@ -143,7 +144,12 @@ func (g *GoGenerator2) EndGroup(gr Group) string {
 	return bg.cf.String()
 }
 
+var inlinere = regexp.MustCompile(`^return (\w+)\(p\)$`)
+
 func (g *GoGenerator2) MakeFunction(value string) string {
+	if inlinere.MatchString(value) {
+		return inlinere.FindStringSubmatch(value)[1]
+	}
 	fname := fmt.Sprintf("helper%d_%s", g.currentFunctionsCount, g.currentName)
 	g.currentFunctionsCount++
 	f := CodeFormatter{}
@@ -202,8 +208,7 @@ freely, subject to the following restrictions:
 	if g.AddDebugLogging {
 		g.output += "var fm CodeFormatter\n\n"
 	}
-	g.output += `
-const (
+	g.output += `const (
 	nilrune = '\u0000'
 )
 
@@ -218,6 +223,9 @@ func p_addNode(p *` + g.Name + `, add func(*` + g.Name + `) bool, name string) b
 	node.Name = name
 	if shouldAdd {
 		node.P = &p.Parser
+		c := make([]*parser.Node, len(node.Children))
+		copy(c, node.Children)
+		node.Children = c
 		p.Root.Append(node)
 	}
 	return shouldAdd
@@ -275,22 +283,6 @@ func p_And(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
 
 func p_Not(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
 	return !p_And(p, exp)
-}
-
-func p_AnyChar(p *` + g.Name + `) bool {
-	return p.AnyChar()
-}
-
-func p_InRange(p *` + g.Name + `, c1, c2 rune) bool {
-	return p.InRange(c1, c2)
-}
-
-func p_InSet(p *` + g.Name + `, dataset string) bool {
-	return p.InSet(dataset)
-}
-
-func p_Next(p *` + g.Name + `, n1 string) bool {
-	return p.Next(n1)
 }
 
 `

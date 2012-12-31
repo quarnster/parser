@@ -59,24 +59,19 @@ func (n *Node) String() string {
 func (n *Node) Cleanup(pos, end int) *Node {
 	var popped Node
 	popped.Range = Range{pos, end}
-	for i := len(n.Children) - 1; i >= 0; i-- {
-		//			fmt.Println("i:", i, ", l:", len(n.Children))
+	back := len(n.Children)
+	popIdx := 0
+
+	for i := back - 1; i >= 0; i-- {
 		node := n.Children[i]
-		if node.Range.Start >= pos || node.Range.End > pos {
-			popped.Append(node)
-			if i > 0 {
-				n.Children = n.Children[:i]
-			} else {
-				n.Children = n.Children[:0]
-			}
-		} else {
+		if node.Range.End <= pos && pos != 0 {
+			popIdx = i + 1
 			break
 		}
 	}
-	// Since we pushed from the back, reverse the list
-	for i, j := 0, len(popped.Children)-1; i < j; i, j = i+1, j-1 {
-		popped.Children[i], popped.Children[j] = popped.Children[j], popped.Children[i]
-	}
+
+	popped.Children = n.Children[popIdx:back]
+	n.Children = n.Children[:popIdx]
 	return &popped
 }
 
