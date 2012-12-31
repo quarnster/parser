@@ -145,10 +145,13 @@ func (g *GoGenerator2) EndGroup(gr Group) string {
 }
 
 var inlinere = regexp.MustCompile(`^return (\w+)\(p\)$`)
+var inlinere2 = regexp.MustCompile(`^return (\w+\(p, [^)]*\)|p.\w+\([^)]*\))$`)
 
 func (g *GoGenerator2) MakeFunction(value string) string {
 	if inlinere.MatchString(value) {
 		return inlinere.FindStringSubmatch(value)[1]
+	} else if inlinere2.MatchString(value) {
+		return "func(p *" + g.Name + ") bool { " + value + " }"
 	}
 	fname := fmt.Sprintf("helper%d_%s", g.currentFunctionsCount, g.currentName)
 	g.currentFunctionsCount++

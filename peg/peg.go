@@ -111,21 +111,15 @@ func (p *Peg) Parse() bool {
 	return p_Grammar(p)
 }
 func helper0_Grammar(p *Peg) bool {
-	return p_OneOrMore(p, p_Definition)
-}
-func helper1_Grammar(p *Peg) bool {
-	return p_Maybe(p, p_EndOfFile)
-}
-func helper2_Grammar(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
 		p_Spacing,
-		helper0_Grammar,
-		helper1_Grammar,
+		func(p *Peg) bool { return p_OneOrMore(p, p_Definition) },
+		func(p *Peg) bool { return p_Maybe(p, p_EndOfFile) },
 	})
 }
 func p_Grammar(p *Peg) bool {
 	// Grammar       <- Spacing Definition+ EndOfFile?
-	return p_addNode(p, helper2_Grammar, "Grammar")
+	return p_addNode(p, helper0_Grammar, "Grammar")
 }
 
 func helper0_Definition(p *Peg) bool {
@@ -147,25 +141,19 @@ func helper0_Expression(p *Peg) bool {
 	})
 }
 func helper1_Expression(p *Peg) bool {
-	return p_ZeroOrMore(p, helper0_Expression)
-}
-func helper2_Expression(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
 		p_Sequence,
-		helper1_Expression,
+		func(p *Peg) bool { return p_ZeroOrMore(p, helper0_Expression) },
 	})
 }
 func p_Expression(p *Peg) bool {
 	// Expression    <- Sequence (SLASH Sequence)*
-	return p_addNode(p, helper2_Expression, "Expression")
+	return p_addNode(p, helper1_Expression, "Expression")
 }
 
-func helper0_Sequence(p *Peg) bool {
-	return p_ZeroOrMore(p, p_Prefix)
-}
 func p_Sequence(p *Peg) bool {
 	// Sequence      <- Prefix*
-	return p_addNode(p, helper0_Sequence, "Sequence")
+	return p_addNode(p, func(p *Peg) bool { return p_ZeroOrMore(p, p_Prefix) }, "Sequence")
 }
 
 func helper0_Prefix(p *Peg) bool {
@@ -175,17 +163,14 @@ func helper0_Prefix(p *Peg) bool {
 	})
 }
 func helper1_Prefix(p *Peg) bool {
-	return p_Maybe(p, helper0_Prefix)
-}
-func helper2_Prefix(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper1_Prefix,
+		func(p *Peg) bool { return p_Maybe(p, helper0_Prefix) },
 		p_Suffix,
 	})
 }
 func p_Prefix(p *Peg) bool {
 	// Prefix        <- (AND / NOT)? Suffix
-	return p_addNode(p, helper2_Prefix, "Prefix")
+	return p_addNode(p, helper1_Prefix, "Prefix")
 }
 
 func helper0_Suffix(p *Peg) bool {
@@ -196,39 +181,33 @@ func helper0_Suffix(p *Peg) bool {
 	})
 }
 func helper1_Suffix(p *Peg) bool {
-	return p_Maybe(p, helper0_Suffix)
-}
-func helper2_Suffix(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
 		p_Primary,
-		helper1_Suffix,
+		func(p *Peg) bool { return p_Maybe(p, helper0_Suffix) },
 	})
 }
 func p_Suffix(p *Peg) bool {
 	// Suffix        <- Primary (QUESTION / STAR / PLUS)?
-	return p_addNode(p, helper2_Suffix, "Suffix")
+	return p_addNode(p, helper1_Suffix, "Suffix")
 }
 
 func helper0_Primary(p *Peg) bool {
-	return p_Not(p, p_LEFTARROW)
-}
-func helper1_Primary(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
 		p_Identifier,
-		helper0_Primary,
+		func(p *Peg) bool { return p_Not(p, p_LEFTARROW) },
 	})
 }
-func helper2_Primary(p *Peg) bool {
+func helper1_Primary(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
 		p_OPEN,
 		p_Expression,
 		p_CLOSE,
 	})
 }
-func helper3_Primary(p *Peg) bool {
+func helper2_Primary(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
+		helper0_Primary,
 		helper1_Primary,
-		helper2_Primary,
 		p_Literal,
 		p_Class,
 		p_DOT,
@@ -239,256 +218,169 @@ func p_Primary(p *Peg) bool {
 	//                / OPEN Expression CLOSE
 	//                / Literal / Class / DOT
 	// # Lexical syntax
-	return p_addNode(p, helper3_Primary, "Primary")
+	return p_addNode(p, helper2_Primary, "Primary")
 }
 
 func helper0_Identifier(p *Peg) bool {
-	return p_ZeroOrMore(p, p_IdentCont)
-}
-func helper1_Identifier(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
 		p_IdentStart,
-		helper0_Identifier,
+		func(p *Peg) bool { return p_ZeroOrMore(p, p_IdentCont) },
 		p_Spacing,
 	})
 }
 func p_Identifier(p *Peg) bool {
 	// Identifier    <- IdentStart IdentCont* Spacing
-	return p_addNode(p, helper1_Identifier, "Identifier")
+	return p_addNode(p, helper0_Identifier, "Identifier")
 }
 
 func helper0_IdentStart(p *Peg) bool {
-	return p.InRange('a', 'z')
-}
-func helper1_IdentStart(p *Peg) bool {
-	return p.InRange('A', 'Z')
-}
-func helper2_IdentStart(p *Peg) bool {
-	return p.InSet("_")
-}
-func helper3_IdentStart(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
-		helper0_IdentStart,
-		helper1_IdentStart,
-		helper2_IdentStart,
+		func(p *Peg) bool { return p.InRange('a', 'z') },
+		func(p *Peg) bool { return p.InRange('A', 'Z') },
+		func(p *Peg) bool { return p.InSet("_") },
 	})
 }
 func p_IdentStart(p *Peg) bool {
 	// IdentStart    <- [a-zA-Z_]
-	return p_addNode(p, helper3_IdentStart, "IdentStart")
+	return p_addNode(p, helper0_IdentStart, "IdentStart")
 }
 
 func helper0_IdentCont(p *Peg) bool {
-	return p.InRange('0', '9')
-}
-func helper1_IdentCont(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
 		p_IdentStart,
-		helper0_IdentCont,
+		func(p *Peg) bool { return p.InRange('0', '9') },
 	})
 }
 func p_IdentCont(p *Peg) bool {
 	// IdentCont     <- IdentStart / [0-9]
-	return p_addNode(p, helper1_IdentCont, "IdentCont")
+	return p_addNode(p, helper0_IdentCont, "IdentCont")
 }
 
 func helper0_Literal(p *Peg) bool {
-	return p.InSet("'")
+	return p_Not(p, func(p *Peg) bool { return p.InSet("'") })
 }
 func helper1_Literal(p *Peg) bool {
-	return p.InSet("'")
-}
-func helper2_Literal(p *Peg) bool {
-	return p_Not(p, helper1_Literal)
-}
-func helper3_Literal(p *Peg) bool {
-	return p_NeedAll(p, []func(*Peg) bool{
-		helper2_Literal,
-		p_Char,
-	})
-}
-func helper4_Literal(p *Peg) bool {
-	return p_ZeroOrMore(p, helper3_Literal)
-}
-func helper5_Literal(p *Peg) bool {
-	return p.InSet("'")
-}
-func helper6_Literal(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
 		helper0_Literal,
-		helper4_Literal,
-		helper5_Literal,
-		p_Spacing,
-	})
-}
-func helper7_Literal(p *Peg) bool {
-	return p.InSet("\"")
-}
-func helper8_Literal(p *Peg) bool {
-	return p.InSet("\"")
-}
-func helper9_Literal(p *Peg) bool {
-	return p_Not(p, helper8_Literal)
-}
-func helper10_Literal(p *Peg) bool {
-	return p_NeedAll(p, []func(*Peg) bool{
-		helper9_Literal,
 		p_Char,
 	})
 }
-func helper11_Literal(p *Peg) bool {
-	return p_ZeroOrMore(p, helper10_Literal)
-}
-func helper12_Literal(p *Peg) bool {
-	return p.InSet("\"")
-}
-func helper13_Literal(p *Peg) bool {
+func helper2_Literal(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper7_Literal,
-		helper11_Literal,
-		helper12_Literal,
+		func(p *Peg) bool { return p.InSet("'") },
+		func(p *Peg) bool { return p_ZeroOrMore(p, helper1_Literal) },
+		func(p *Peg) bool { return p.InSet("'") },
 		p_Spacing,
 	})
 }
-func helper14_Literal(p *Peg) bool {
+func helper3_Literal(p *Peg) bool {
+	return p_Not(p, func(p *Peg) bool { return p.InSet("\"") })
+}
+func helper4_Literal(p *Peg) bool {
+	return p_NeedAll(p, []func(*Peg) bool{
+		helper3_Literal,
+		p_Char,
+	})
+}
+func helper5_Literal(p *Peg) bool {
+	return p_NeedAll(p, []func(*Peg) bool{
+		func(p *Peg) bool { return p.InSet("\"") },
+		func(p *Peg) bool { return p_ZeroOrMore(p, helper4_Literal) },
+		func(p *Peg) bool { return p.InSet("\"") },
+		p_Spacing,
+	})
+}
+func helper6_Literal(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
-		helper6_Literal,
-		helper13_Literal,
+		helper2_Literal,
+		helper5_Literal,
 	})
 }
 func p_Literal(p *Peg) bool {
 	// Literal       <- ['] (!['] Char)* ['] Spacing
 	//                / ["] (!["] Char)* ["] Spacing
-	return p_addNode(p, helper14_Literal, "Literal")
+	return p_addNode(p, helper6_Literal, "Literal")
 }
 
 func helper0_Class(p *Peg) bool {
-	return p.Next("[")
+	return p_Not(p, func(p *Peg) bool { return p.Next("]") })
 }
 func helper1_Class(p *Peg) bool {
-	return p.Next("]")
-}
-func helper2_Class(p *Peg) bool {
-	return p_Not(p, helper1_Class)
-}
-func helper3_Class(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper2_Class,
+		helper0_Class,
 		p_Range,
 	})
 }
-func helper4_Class(p *Peg) bool {
-	return p_ZeroOrMore(p, helper3_Class)
-}
-func helper5_Class(p *Peg) bool {
-	return p.Next("]")
-}
-func helper6_Class(p *Peg) bool {
+func helper2_Class(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_Class,
-		helper4_Class,
-		helper5_Class,
+		func(p *Peg) bool { return p.Next("[") },
+		func(p *Peg) bool { return p_ZeroOrMore(p, helper1_Class) },
+		func(p *Peg) bool { return p.Next("]") },
 		p_Spacing,
 	})
 }
 func p_Class(p *Peg) bool {
 	// Class         <- '[' (!']' Range)* ']' Spacing
-	return p_addNode(p, helper6_Class, "Class")
+	return p_addNode(p, helper2_Class, "Class")
 }
 
 func helper0_Range(p *Peg) bool {
-	return p.Next("-")
-}
-func helper1_Range(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
 		p_Char,
-		helper0_Range,
+		func(p *Peg) bool { return p.Next("-") },
 		p_Char,
 	})
 }
-func helper2_Range(p *Peg) bool {
+func helper1_Range(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
-		helper1_Range,
+		helper0_Range,
 		p_Char,
 	})
 }
 func p_Range(p *Peg) bool {
 	// Range         <- Char '-' Char / Char
-	return p_addNode(p, helper2_Range, "Range")
+	return p_addNode(p, helper1_Range, "Range")
 }
 
 func helper0_Char(p *Peg) bool {
-	return p.Next("\\")
+	return p_NeedAll(p, []func(*Peg) bool{
+		func(p *Peg) bool { return p.Next("\\") },
+		func(p *Peg) bool { return p.InSet("nrt'\"[]\\") },
+	})
 }
 func helper1_Char(p *Peg) bool {
-	return p.InSet("nrt'\"[]\\")
+	return p_NeedAll(p, []func(*Peg) bool{
+		func(p *Peg) bool { return p.Next("\\") },
+		func(p *Peg) bool { return p.InRange('0', '2') },
+		func(p *Peg) bool { return p.InRange('0', '7') },
+		func(p *Peg) bool { return p.InRange('0', '7') },
+	})
 }
 func helper2_Char(p *Peg) bool {
-	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_Char,
-		helper1_Char,
-	})
+	return p_Maybe(p, func(p *Peg) bool { return p.InRange('0', '7') })
 }
 func helper3_Char(p *Peg) bool {
-	return p.Next("\\")
+	return p_NeedAll(p, []func(*Peg) bool{
+		func(p *Peg) bool { return p.Next("\\") },
+		func(p *Peg) bool { return p.InRange('0', '7') },
+		helper2_Char,
+	})
 }
 func helper4_Char(p *Peg) bool {
-	return p.InRange('0', '2')
+	return p_Not(p, func(p *Peg) bool { return p.Next("\\") })
 }
 func helper5_Char(p *Peg) bool {
-	return p.InRange('0', '7')
+	return p_NeedAll(p, []func(*Peg) bool{
+		helper4_Char,
+		func(p *Peg) bool { return p.AnyChar() },
+	})
 }
 func helper6_Char(p *Peg) bool {
-	return p.InRange('0', '7')
-}
-func helper7_Char(p *Peg) bool {
-	return p_NeedAll(p, []func(*Peg) bool{
-		helper3_Char,
-		helper4_Char,
-		helper5_Char,
-		helper6_Char,
-	})
-}
-func helper8_Char(p *Peg) bool {
-	return p.Next("\\")
-}
-func helper9_Char(p *Peg) bool {
-	return p.InRange('0', '7')
-}
-func helper10_Char(p *Peg) bool {
-	return p.InRange('0', '7')
-}
-func helper11_Char(p *Peg) bool {
-	return p_Maybe(p, helper10_Char)
-}
-func helper12_Char(p *Peg) bool {
-	return p_NeedAll(p, []func(*Peg) bool{
-		helper8_Char,
-		helper9_Char,
-		helper11_Char,
-	})
-}
-func helper13_Char(p *Peg) bool {
-	return p.Next("\\")
-}
-func helper14_Char(p *Peg) bool {
-	return p_Not(p, helper13_Char)
-}
-func helper15_Char(p *Peg) bool {
-	return p.AnyChar()
-}
-func helper16_Char(p *Peg) bool {
-	return p_NeedAll(p, []func(*Peg) bool{
-		helper14_Char,
-		helper15_Char,
-	})
-}
-func helper17_Char(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
-		helper2_Char,
-		helper7_Char,
-		helper12_Char,
-		helper16_Char,
+		helper0_Char,
+		helper1_Char,
+		helper3_Char,
+		helper5_Char,
 	})
 }
 func p_Char(p *Peg) bool {
@@ -496,119 +388,95 @@ func p_Char(p *Peg) bool {
 	//                / '\\' [0-2][0-7][0-7]
 	//                / '\\' [0-7][0-7]?
 	//                / !'\\' .
-	return p_addNode(p, helper17_Char, "Char")
+	return p_addNode(p, helper6_Char, "Char")
 }
 
 func helper0_LEFTARROW(p *Peg) bool {
-	return p.Next("<-")
-}
-func helper1_LEFTARROW(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_LEFTARROW,
+		func(p *Peg) bool { return p.Next("<-") },
 		p_Spacing,
 	})
 }
 func p_LEFTARROW(p *Peg) bool {
 	// LEFTARROW     <- '<-' Spacing
-	return p_addNode(p, helper1_LEFTARROW, "LEFTARROW")
+	return p_addNode(p, helper0_LEFTARROW, "LEFTARROW")
 }
 
 func helper0_SLASH(p *Peg) bool {
-	return p.Next("/")
-}
-func helper1_SLASH(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_SLASH,
+		func(p *Peg) bool { return p.Next("/") },
 		p_Spacing,
 	})
 }
 func p_SLASH(p *Peg) bool {
 	// SLASH         <- '/' Spacing
-	return p_addNode(p, helper1_SLASH, "SLASH")
+	return p_addNode(p, helper0_SLASH, "SLASH")
 }
 
 func helper0_AND(p *Peg) bool {
-	return p.Next("&")
-}
-func helper1_AND(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_AND,
+		func(p *Peg) bool { return p.Next("&") },
 		p_Spacing,
 	})
 }
 func p_AND(p *Peg) bool {
 	// AND           <- '&' Spacing
-	return p_addNode(p, helper1_AND, "AND")
+	return p_addNode(p, helper0_AND, "AND")
 }
 
 func helper0_NOT(p *Peg) bool {
-	return p.Next("!")
-}
-func helper1_NOT(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_NOT,
+		func(p *Peg) bool { return p.Next("!") },
 		p_Spacing,
 	})
 }
 func p_NOT(p *Peg) bool {
 	// NOT           <- '!' Spacing
-	return p_addNode(p, helper1_NOT, "NOT")
+	return p_addNode(p, helper0_NOT, "NOT")
 }
 
 func helper0_QUESTION(p *Peg) bool {
-	return p.Next("?")
-}
-func helper1_QUESTION(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_QUESTION,
+		func(p *Peg) bool { return p.Next("?") },
 		p_Spacing,
 	})
 }
 func p_QUESTION(p *Peg) bool {
 	// QUESTION      <- '?' Spacing
-	return p_addNode(p, helper1_QUESTION, "QUESTION")
+	return p_addNode(p, helper0_QUESTION, "QUESTION")
 }
 
 func helper0_STAR(p *Peg) bool {
-	return p.Next("*")
-}
-func helper1_STAR(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_STAR,
+		func(p *Peg) bool { return p.Next("*") },
 		p_Spacing,
 	})
 }
 func p_STAR(p *Peg) bool {
 	// STAR          <- '*' Spacing
-	return p_addNode(p, helper1_STAR, "STAR")
+	return p_addNode(p, helper0_STAR, "STAR")
 }
 
 func helper0_PLUS(p *Peg) bool {
-	return p.Next("+")
-}
-func helper1_PLUS(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_PLUS,
+		func(p *Peg) bool { return p.Next("+") },
 		p_Spacing,
 	})
 }
 func p_PLUS(p *Peg) bool {
 	// PLUS          <- '+' Spacing
-	return p_addNode(p, helper1_PLUS, "PLUS")
+	return p_addNode(p, helper0_PLUS, "PLUS")
 }
 
 func helper0_OPEN(p *Peg) bool {
-	return p.Next("(")
-}
-func helper1_OPEN(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_OPEN,
+		func(p *Peg) bool { return p.Next("(") },
 		p_Spacing,
 	})
 }
 func p_OPEN(p *Peg) bool {
 	// OPEN          <- '(' Spacing
-	return p_addNode(p, helper1_OPEN, "OPEN")
+	return p_addNode(p, helper0_OPEN, "OPEN")
 }
 
 func helper0_CLOSE(p *Peg) bool {
@@ -626,17 +494,14 @@ func p_CLOSE(p *Peg) bool {
 }
 
 func helper0_DOT(p *Peg) bool {
-	return p.Next(".")
-}
-func helper1_DOT(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_DOT,
+		func(p *Peg) bool { return p.Next(".") },
 		p_Spacing,
 	})
 }
 func p_DOT(p *Peg) bool {
 	// DOT           <- '.' Spacing
-	return p_addNode(p, helper1_DOT, "DOT")
+	return p_addNode(p, helper0_DOT, "DOT")
 }
 
 func helper0_Spacing(p *Peg) bool {
@@ -645,90 +510,57 @@ func helper0_Spacing(p *Peg) bool {
 		p_Comment,
 	})
 }
-func helper1_Spacing(p *Peg) bool {
-	return p_ZeroOrMore(p, helper0_Spacing)
-}
 func p_Spacing(p *Peg) bool {
 	// Spacing       <- (Space / Comment)*
-	return p_addNode(p, helper1_Spacing, "Spacing")
+	return p_addNode(p, func(p *Peg) bool { return p_ZeroOrMore(p, helper0_Spacing) }, "Spacing")
 }
 
 func helper0_Comment(p *Peg) bool {
-	return p.Next("#")
-}
-func helper1_Comment(p *Peg) bool {
-	return p_Not(p, p_EndOfLine)
-}
-func helper2_Comment(p *Peg) bool {
-	return p.AnyChar()
-}
-func helper3_Comment(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper1_Comment,
-		helper2_Comment,
+		func(p *Peg) bool { return p_Not(p, p_EndOfLine) },
+		func(p *Peg) bool { return p.AnyChar() },
 	})
 }
-func helper4_Comment(p *Peg) bool {
-	return p_ZeroOrMore(p, helper3_Comment)
-}
-func helper5_Comment(p *Peg) bool {
+func helper1_Comment(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		helper0_Comment,
-		helper4_Comment,
+		func(p *Peg) bool { return p.Next("#") },
+		func(p *Peg) bool { return p_ZeroOrMore(p, helper0_Comment) },
 		p_EndOfLine,
 	})
 }
 func p_Comment(p *Peg) bool {
 	// Comment       <- '#' (!EndOfLine .)* EndOfLine
-	return p_addNode(p, helper5_Comment, "Comment")
+	return p_addNode(p, helper1_Comment, "Comment")
 }
 
 func helper0_Space(p *Peg) bool {
-	return p.Next(" ")
-}
-func helper1_Space(p *Peg) bool {
-	return p.Next("\t")
-}
-func helper2_Space(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
-		helper0_Space,
-		helper1_Space,
+		func(p *Peg) bool { return p.Next(" ") },
+		func(p *Peg) bool { return p.Next("\t") },
 		p_EndOfLine,
 	})
 }
 func p_Space(p *Peg) bool {
 	// Space         <- ' ' / '\t' / EndOfLine
-	return p_addNode(p, helper2_Space, "Space")
+	return p_addNode(p, helper0_Space, "Space")
 }
 
 func helper0_EndOfLine(p *Peg) bool {
-	return p.Next("\r\n")
-}
-func helper1_EndOfLine(p *Peg) bool {
-	return p.Next("\n")
-}
-func helper2_EndOfLine(p *Peg) bool {
-	return p.Next("\r")
-}
-func helper3_EndOfLine(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
-		helper0_EndOfLine,
-		helper1_EndOfLine,
-		helper2_EndOfLine,
+		func(p *Peg) bool { return p.Next("\r\n") },
+		func(p *Peg) bool { return p.Next("\n") },
+		func(p *Peg) bool { return p.Next("\r") },
 	})
 }
 func p_EndOfLine(p *Peg) bool {
 	// EndOfLine     <- '\r\n' / '\n' / '\r'
-	return p_addNode(p, helper3_EndOfLine, "EndOfLine")
+	return p_addNode(p, helper0_EndOfLine, "EndOfLine")
 }
 
 func helper0_EndOfFile(p *Peg) bool {
-	return p.AnyChar()
-}
-func helper1_EndOfFile(p *Peg) bool {
-	return p_Not(p, helper0_EndOfFile)
+	return p_Not(p, func(p *Peg) bool { return p.AnyChar() })
 }
 func p_EndOfFile(p *Peg) bool {
 	// EndOfFile     <- !.
-	return p_addNode(p, helper1_EndOfFile, "EndOfFile")
+	return p_addNode(p, helper0_EndOfFile, "EndOfFile")
 }
