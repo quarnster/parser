@@ -30,10 +30,6 @@ type Peg struct {
 	parser.Parser
 }
 
-const (
-	nilrune = '\u0000'
-)
-
 func p_addNode(p *Peg, add func(*Peg) bool, name string) bool {
 	start := p.ParserData.Pos
 	shouldAdd := add(p)
@@ -303,7 +299,7 @@ func p_Literal(p *Peg) bool {
 }
 
 func helper0_Class(p *Peg) bool {
-	return p_Not(p, func(p *Peg) bool { return p.Next("]") })
+	return p_Not(p, func(p *Peg) bool { return p.NextRune(']') })
 }
 func helper1_Class(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
@@ -313,9 +309,9 @@ func helper1_Class(p *Peg) bool {
 }
 func helper2_Class(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("[") },
+		func(p *Peg) bool { return p.NextRune('[') },
 		func(p *Peg) bool { return p_ZeroOrMore(p, helper1_Class) },
-		func(p *Peg) bool { return p.Next("]") },
+		func(p *Peg) bool { return p.NextRune(']') },
 		p_Spacing,
 	})
 }
@@ -327,7 +323,7 @@ func p_Class(p *Peg) bool {
 func helper0_Range(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
 		p_Char,
-		func(p *Peg) bool { return p.Next("-") },
+		func(p *Peg) bool { return p.NextRune('-') },
 		p_Char,
 	})
 }
@@ -344,13 +340,13 @@ func p_Range(p *Peg) bool {
 
 func helper0_Char(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("\\") },
+		func(p *Peg) bool { return p.NextRune('\\') },
 		func(p *Peg) bool { return p.InSet("nrt'\"[]\\") },
 	})
 }
 func helper1_Char(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("\\") },
+		func(p *Peg) bool { return p.NextRune('\\') },
 		func(p *Peg) bool { return p.InRange('0', '2') },
 		func(p *Peg) bool { return p.InRange('0', '7') },
 		func(p *Peg) bool { return p.InRange('0', '7') },
@@ -361,13 +357,13 @@ func helper2_Char(p *Peg) bool {
 }
 func helper3_Char(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("\\") },
+		func(p *Peg) bool { return p.NextRune('\\') },
 		func(p *Peg) bool { return p.InRange('0', '7') },
 		helper2_Char,
 	})
 }
 func helper4_Char(p *Peg) bool {
-	return p_Not(p, func(p *Peg) bool { return p.Next("\\") })
+	return p_Not(p, func(p *Peg) bool { return p.NextRune('\\') })
 }
 func helper5_Char(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
@@ -393,18 +389,18 @@ func p_Char(p *Peg) bool {
 
 func helper0_LEFTARROW(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("<-") },
+		func(p *Peg) bool { return p.Next([]rune{'<', '-'}) },
 		p_Spacing,
 	})
 }
 func p_LEFTARROW(p *Peg) bool {
-	// LEFTARROW     <- '<-' Spacing
+	// LEFTARROW     <- "<-" Spacing
 	return p_addNode(p, helper0_LEFTARROW, "LEFTARROW")
 }
 
 func helper0_SLASH(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("/") },
+		func(p *Peg) bool { return p.NextRune('/') },
 		p_Spacing,
 	})
 }
@@ -415,7 +411,7 @@ func p_SLASH(p *Peg) bool {
 
 func helper0_AND(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("&") },
+		func(p *Peg) bool { return p.NextRune('&') },
 		p_Spacing,
 	})
 }
@@ -426,7 +422,7 @@ func p_AND(p *Peg) bool {
 
 func helper0_NOT(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("!") },
+		func(p *Peg) bool { return p.NextRune('!') },
 		p_Spacing,
 	})
 }
@@ -437,7 +433,7 @@ func p_NOT(p *Peg) bool {
 
 func helper0_QUESTION(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("?") },
+		func(p *Peg) bool { return p.NextRune('?') },
 		p_Spacing,
 	})
 }
@@ -448,7 +444,7 @@ func p_QUESTION(p *Peg) bool {
 
 func helper0_STAR(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("*") },
+		func(p *Peg) bool { return p.NextRune('*') },
 		p_Spacing,
 	})
 }
@@ -459,7 +455,7 @@ func p_STAR(p *Peg) bool {
 
 func helper0_PLUS(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("+") },
+		func(p *Peg) bool { return p.NextRune('+') },
 		p_Spacing,
 	})
 }
@@ -470,7 +466,7 @@ func p_PLUS(p *Peg) bool {
 
 func helper0_OPEN(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("(") },
+		func(p *Peg) bool { return p.NextRune('(') },
 		p_Spacing,
 	})
 }
@@ -480,7 +476,7 @@ func p_OPEN(p *Peg) bool {
 }
 
 func helper0_CLOSE(p *Peg) bool {
-	return p.Next(")")
+	return p.NextRune(')')
 }
 func helper1_CLOSE(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
@@ -495,7 +491,7 @@ func p_CLOSE(p *Peg) bool {
 
 func helper0_DOT(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next(".") },
+		func(p *Peg) bool { return p.NextRune('.') },
 		p_Spacing,
 	})
 }
@@ -523,7 +519,7 @@ func helper0_Comment(p *Peg) bool {
 }
 func helper1_Comment(p *Peg) bool {
 	return p_NeedAll(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("#") },
+		func(p *Peg) bool { return p.NextRune('#') },
 		func(p *Peg) bool { return p_ZeroOrMore(p, helper0_Comment) },
 		p_EndOfLine,
 	})
@@ -535,8 +531,8 @@ func p_Comment(p *Peg) bool {
 
 func helper0_Space(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next(" ") },
-		func(p *Peg) bool { return p.Next("\t") },
+		func(p *Peg) bool { return p.NextRune(' ') },
+		func(p *Peg) bool { return p.NextRune('\t') },
 		p_EndOfLine,
 	})
 }
@@ -547,13 +543,13 @@ func p_Space(p *Peg) bool {
 
 func helper0_EndOfLine(p *Peg) bool {
 	return p_NeedOne(p, []func(*Peg) bool{
-		func(p *Peg) bool { return p.Next("\r\n") },
-		func(p *Peg) bool { return p.Next("\n") },
-		func(p *Peg) bool { return p.Next("\r") },
+		func(p *Peg) bool { return p.Next([]rune{'\r', '\n'}) },
+		func(p *Peg) bool { return p.NextRune('\n') },
+		func(p *Peg) bool { return p.NextRune('\r') },
 	})
 }
 func p_EndOfLine(p *Peg) bool {
-	// EndOfLine     <- '\r\n' / '\n' / '\r'
+	// EndOfLine     <- "\r\n" / '\n' / '\r'
 	return p_addNode(p, helper0_EndOfLine, "EndOfLine")
 }
 

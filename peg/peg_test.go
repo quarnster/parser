@@ -3,7 +3,6 @@ package peg
 import (
 	"bytes"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"parser"
@@ -56,7 +55,7 @@ func TestParser(t *testing.T) {
 				data2 := []byte(parser.GenerateParser(p.RootNode(), &gen))
 				if cmp := bytes.Compare(data, data2); cmp != 0 {
 					d, _ := diff(data, data2)
-					log.Println(p.RootNode())
+					t.Log(p.RootNode())
 					t.Fatalf("Generated parser isn't equal to self: %d\n%s\n", cmp, string(d))
 				}
 			}

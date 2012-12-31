@@ -24,11 +24,6 @@ package parser
 
 import (
 	"strings"
-	"unicode/utf8"
-)
-
-const (
-	Nilrune = '\u0000'
 )
 
 func (p *Parser) AddNode(add func() bool, name string) bool {
@@ -50,28 +45,13 @@ func (p *Parser) AddNode(add func() bool, name string) bool {
 type Parser struct {
 	Root       Node
 	ParserData struct {
-		Size int
 		Pos  int
-		Data string
+		Data []rune
 	}
-}
-
-func (p *Parser) ReadRune() rune {
-	if p.ParserData.Pos >= len(p.ParserData.Data) {
-		return Nilrune
-	}
-	if c := p.ParserData.Data[p.ParserData.Pos]; c < utf8.RuneSelf {
-		p.ParserData.Pos++
-		return rune(c)
-	}
-	ch, size := utf8.DecodeRuneInString(p.ParserData.Data[p.ParserData.Pos:])
-	p.ParserData.Pos += size
-	return ch
 }
 
 func (p *Parser) SetData(data string) {
-	p.ParserData.Size = len(data)
-	p.ParserData.Data = data
+	p.ParserData.Data = ([]rune)(data)
 	p.Reset()
 }
 
@@ -81,7 +61,7 @@ func (p *Parser) Reset() {
 }
 
 func (p *Parser) Data(start, end int) string {
-	return p.ParserData.Data[start:end]
+	return string(p.ParserData.Data[start:end])
 }
 
 func (p *Parser) RootNode() *Node {
@@ -144,44 +124,53 @@ func (p *Parser) Not(exp func() bool) bool {
 }
 
 func (p *Parser) AnyChar() bool {
-	return p.ReadRune() != Nilrune
+	if p.ParserData.Pos >= len(p.ParserData.Data) {
+		return false
+	}
+	p.ParserData.Pos++
+	return true
 }
 
 func (p *Parser) InRange(c1, c2 rune) bool {
-	save := p.ParserData.Pos
-	if c := p.ReadRune(); c == Nilrune {
+	if p.ParserData.Pos >= len(p.ParserData.Data) {
 		return false
-	} else {
-		if c >= c1 && c <= c2 {
-			return true
-		}
 	}
-	p.ParserData.Pos = save
+	c := p.ParserData.Data[p.ParserData.Pos]
+	if c >= c1 && c <= c2 {
+		p.ParserData.Pos++
+		return true
+	}
 	return false
 }
 
 func (p *Parser) InSet(dataset string) bool {
-	save := p.ParserData.Pos
-	if c := p.ReadRune(); c == Nilrune {
+	if p.ParserData.Pos >= len(p.ParserData.Data) {
 		return false
-	} else {
-		if strings.ContainsRune(dataset, c) {
-			return true
-		}
 	}
-	p.ParserData.Pos = save
+	c := p.ParserData.Data[p.ParserData.Pos]
+	if strings.ContainsRune(dataset, c) {
+		p.ParserData.Pos++
+		return true
+	}
 	return false
 }
-
-func (p *Parser) Next(n1 string) bool {
-	s := p.ParserData.Pos
-	e := s + len(n1)
-	if e > p.ParserData.Size {
+func (p *Parser) NextRune(n1 rune) bool {
+	if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != n1 {
 		return false
 	}
-	// Todo: should really build a string out of runes to be 100% correct.
-	if !strings.EqualFold(n1, p.ParserData.Data[s:e]) {
+	p.ParserData.Pos++
+	return true
+}
+func (p *Parser) Next(n1 []rune) bool {
+	s := p.ParserData.Pos
+	e := s + len(n1)
+	if e > len(p.ParserData.Data) {
 		return false
+	}
+	for i := 0; i < len(n1); i++ {
+		if n1[i] != p.ParserData.Data[s+i] {
+			return false
+		}
 	}
 	p.ParserData.Pos += len(n1)
 	return true

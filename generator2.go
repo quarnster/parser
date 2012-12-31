@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 )
@@ -37,13 +38,6 @@ func (g *GoGenerator2) MakeParserFunction(node *Node) {
 	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
 
 	if g.AddDebugLogging {
-		indenter.Add(`var (
-	pos = p.Pos()
-	l   = p.ParserData.Len()
-)
-`)
-		indenter.Add(`log.Println(fm.level + "` + defName + " entered\")\n")
-		indenter.Add("fm.Inc()\n")
 	}
 	defaultAction := defName[:1] == strings.ToUpper(defName[:1])
 	for i := range g.CustomActions {
@@ -58,19 +52,23 @@ func (g *GoGenerator2) MakeParserFunction(node *Node) {
 		data = "p_addNode(p, " + data + ", \"" + defName + "\")"
 	}
 	if g.AddDebugLogging {
-		indenter.Add("res := " + data)
-		indenter.Add("\nfm.Dec()\n")
-		indenter.Add(`if !res && p.Pos() != pos {
-	log.Fatalln("` + defName + `", res, ", ", pos, ", ", p.Pos())
+		indenter.Add(`var (
+	pos = p.ParserData.Pos
+	l   = len(p.ParserData.Data)
+)
+
+log.Println(fm.Level() + "` + defName + ` entered\")\n")
+fm.Inc()
+res := ` + data + `
+fm.Dec()
+if !res && p.ParserData.Pos != pos {
+	log.Fatalln("` + defName + `", res, ", ", pos, ", ", p.ParserData.Pos)
 }
-p2 := p.Pos()
-data := make([]byte, p2-pos)
-p.ParserData.Seek(int64(pos), 0)
-p.ParserData.Read(data)
-p.ParserData.Seek(int64(p2), 0)
+p2 := p.ParserData.Pos
+data := string(p.ParserData.Data[pos:p2])
+log.Println(fm.Level()+"` + defName + ` returned: ", res, ", ", pos, ", ", p.ParserData.Pos, ", ", l, string(data))
+return res
 `)
-		indenter.Add("log.Println(fm.level+\"" + defName + ` returned: ", res, ", ", pos, ", ", p.Pos(), ", ", l, string(data))` + "\n")
-		indenter.Add("return res\n")
 	} else {
 		indenter.Add("return " + data + "\n")
 	}
@@ -102,8 +100,23 @@ func (g *GoGenerator2) CheckAnyChar() string {
 }
 
 func (g *GoGenerator2) CheckNext(a string) string {
-	a = "\"" + strings.Replace(a[1:len(a)-1], "\"", "\\\"", -1) + "\""
-	return "p.Next(" + a + ")"
+	if a[0] == '\'' {
+		return "p.NextRune(" + a + ")"
+	}
+	a = a[1 : len(a)-1]
+	ret := ""
+	for i := 0; i < len(a); i++ {
+		if len(ret) != 0 {
+			ret += ", "
+		}
+		ch := string(a[i])
+		if a[i] == '\\' {
+			i++
+			ch += string(a[i])
+		}
+		ret += fmt.Sprintf("'%s'", ch)
+	}
+	return "p.Next([]rune{" + ret + "})"
 }
 
 func (g *GoGenerator2) AssertNot(a string) string {
@@ -144,10 +157,18 @@ func (g *GoGenerator2) EndGroup(gr Group) string {
 	return bg.cf.String()
 }
 
-var inlinere = regexp.MustCompile(`^return (\w+)\(p\)$`)
-var inlinere2 = regexp.MustCompile(`^return (\w+\(p, [^)]*\)|p.\w+\([^)]*\))$`)
+var inlinere = regexp.MustCompile(`^return ([\s\S]*?)\(p\)$`)
+var inlinere2 = regexp.MustCompile(`^return (\w+\(p, [^)]*\)|p.\w+\([^)]*\))($|\}\(p\)$)`)
 
 func (g *GoGenerator2) MakeFunction(value string) string {
+	if strings.HasSuffix(value, "}(p)") {
+		m1 := inlinere.MatchString(value)
+		mm1 := ""
+		if m1 {
+			mm1 = strings.Join(inlinere.FindStringSubmatch(value), "---")
+		}
+		log.Println(value, m1, mm1, inlinere2.MatchString(value))
+	}
 	if inlinere.MatchString(value) {
 		return inlinere.FindStringSubmatch(value)[1]
 	} else if inlinere2.MatchString(value) {
@@ -209,13 +230,9 @@ freely, subject to the following restrictions:
 	members = append(members, "parser.Parser")
 	g.output += fmt.Sprintln("package " + strings.ToLower(g.Name) + "\n" + imports + "\ntype " + g.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
 	if g.AddDebugLogging {
-		g.output += "var fm CodeFormatter\n\n"
+		g.output += "var fm parser.CodeFormatter\n\n"
 	}
-	g.output += `const (
-	nilrune = '\u0000'
-)
-
-func p_addNode(p *` + g.Name + `, add func(*` + g.Name + `) bool, name string) bool {
+	g.output += `func p_addNode(p *` + g.Name + `, add func(*` + g.Name + `) bool, name string) bool {
 	start := p.ParserData.Pos
 	shouldAdd := add(p)
 	p.Root.P = &p.Parser

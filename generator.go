@@ -24,7 +24,6 @@ package parser
 
 import (
 	"container/list"
-	"fmt"
 	"strings"
 )
 
@@ -39,6 +38,9 @@ type CodeFormatter struct {
 	data  string
 }
 
+func (i *CodeFormatter) Level() string {
+	return i.level
+}
 func (i *CodeFormatter) Inc() {
 	i.level += "\t"
 	l := len(i.data)
@@ -93,209 +95,9 @@ type Generator interface {
 	Begin()
 	Finish() string
 }
-
 type CustomAction struct {
 	Name   string
 	Action string
-}
-type GoGenerator struct {
-	output          string
-	AddDebugLogging bool
-	Name            string
-	CustomActions   []CustomAction
-	ParserVariables []string
-	Imports         []string
-	havefunctions   bool
-}
-
-func (g *GoGenerator) Begin() {
-	imports := ""
-	impList := g.Imports
-	if g.AddDebugLogging {
-		impList = append(impList, "log")
-	}
-	impList = append(impList, "parser")
-	if len(impList) > 0 {
-		imports += "\nimport (\n\t\"" + strings.Join(impList, "\"\n\t\"") + "\")\n"
-	}
-	g.output = `/*
-Copyright (c) 2012 Fredrik Ehnbom
-
-This software is provided 'as-is', without any express or implied
-warranty. In no event will the authors be held liable for any damages
-arising from the use of this software.
-
-Permission is granted to anyone to use this software for any purpose,
-including commercial applications, and to alter it and redistribute it
-freely, subject to the following restrictions:
-
-   1. The origin of this software must not be misrepresented; you must not
-   claim that you wrote the original software. If you use this software
-   in a product, an acknowledgment in the product documentation would be
-   appreciated but is not required.
-
-   2. Altered source versions must be plainly marked as such, and must not be
-   misrepresented as being the original software.
-
-   3. This notice may not be removed or altered from any source
-   distribution.
-*/
-`
-	members := g.ParserVariables
-	members = append(members, "parser.Parser")
-	g.output += fmt.Sprintln("package " + strings.ToLower(g.Name) + "\n" + imports + "\ntype " + g.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
-	if g.AddDebugLogging {
-		g.output += "var fm CodeFormatter\n\n"
-	}
-}
-
-func (g *GoGenerator) Finish() string {
-	ret := g.output
-	if ret[len(ret)-2:] == "\n\n" {
-		ret = ret[:len(ret)-1]
-	}
-	g.output = ""
-	return ret
-}
-
-func (g *GoGenerator) MakeParserFunction(node *Node) {
-	id := node.Children[0]
-	exp := node.Children[len(node.Children)-1]
-	defName := helper(g, id)
-	data := helper(g, exp)
-
-	if !g.havefunctions {
-		g.havefunctions = true
-		g.output += "func (p *" + g.Name + ") Parse() bool {\n\treturn p." + defName + "()\n}\n"
-	}
-	indenter := CodeFormatter{}
-	indenter.Add("func (p *" + g.Name + ") " + defName + "() bool {\n")
-	indenter.Inc()
-	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
-
-	if g.AddDebugLogging {
-		indenter.Add(`var (
-	pos = p.Pos()
-	l   = p.ParserData.Len()
-)
-`)
-		indenter.Add(`log.Println(fm.level + "` + defName + " entered\")\n")
-		indenter.Add("fm.Inc()\n")
-	}
-	defaultAction := defName[:1] == strings.ToUpper(defName[:1])
-	for i := range g.CustomActions {
-		if defName == g.CustomActions[i].Name {
-			defaultAction = false
-			data = fmt.Sprintf(g.CustomActions[i].Action, g.MakeFunction(g.Return(data)))
-			break
-		}
-	}
-	if defaultAction {
-		data = g.MakeFunction(g.Return(data))
-		data = "p.AddNode(" + data + ", \"" + defName + "\")"
-	}
-	if g.AddDebugLogging {
-		indenter.Add("res := " + data)
-		indenter.Add("\nfm.Dec()\n")
-		indenter.Add(`if !res && p.Pos() != pos {
-	log.Fatalln("` + defName + `", res, ", ", pos, ", ", p.Pos())
-}
-p2 := p.Pos()
-data := make([]byte, p2-pos)
-p.ParserData.Seek(int64(pos), 0)
-p.ParserData.Read(data)
-p.ParserData.Seek(int64(p2), 0)
-`)
-		indenter.Add("log.Println(fm.level+\"" + defName + ` returned: ", res, ", ", pos, ", ", p.Pos(), ", ", l, string(data))` + "\n")
-		indenter.Add("return res\n")
-	} else {
-		indenter.Add("return " + data + "\n")
-	}
-	indenter.Dec()
-	indenter.Add("}\n\n")
-	g.output += indenter.String()
-}
-
-func (g *GoGenerator) MakeParserCall(value string) string {
-	return "p." + value
-}
-
-func (g *GoGenerator) Return(value string) string {
-	return "return " + value
-}
-
-func (g *GoGenerator) Call(value string) string {
-	return value + "()"
-}
-
-func (g *GoGenerator) MakeFunction(value string) string {
-	f := CodeFormatter{}
-	f.Add("func() bool {\n")
-	f.Inc()
-	f.Add(value)
-	f.Dec()
-	f.Add("\n}")
-	return f.String()
-}
-
-func (g *GoGenerator) CheckInRange(a, b string) string {
-	return "p.InRange('" + a + "', '" + b + "')"
-}
-
-func (g *GoGenerator) CheckInSet(a string) string {
-	a = strings.Replace(a, "\\[", "[", -1)
-	a = strings.Replace(a, "\\]", "]", -1)
-	a = strings.Replace(a, "\n", "\\n", -1)
-	a = strings.Replace(a, "\r", "\\r", -1)
-	a = strings.Replace(a, "\"", "\\\"", -1)
-	return "p.InSet(\"" + a + "\")"
-}
-
-func (g *GoGenerator) CheckAnyChar() string {
-	return "p.AnyChar()"
-}
-
-func (g *GoGenerator) CheckNext(a string) string {
-	a = "\"" + strings.Replace(a[1:len(a)-1], "\"", "\\\"", -1) + "\""
-	return "p.Next(" + a + ")"
-}
-
-func (g *GoGenerator) AssertNot(a string) string {
-	return "p.Not(" + a + ")"
-}
-
-func (g *GoGenerator) AssertAnd(a string) string {
-	return "p.And(" + a + ")"
-}
-
-func (g *GoGenerator) ZeroOrMore(a string) string {
-	return "p.ZeroOrMore(" + a + ")"
-}
-
-func (g *GoGenerator) OneOrMore(a string) string {
-	return "p.OneOrMore(" + a + ")"
-}
-
-func (g *GoGenerator) Maybe(a string) string {
-	return "p.Maybe(" + a + ")"
-}
-
-func (g *GoGenerator) BeginGroup(requireAll bool) Group {
-	r := baseGroup{}
-	if requireAll {
-		r.cf.Add("p.NeedAll([]func() bool{\n")
-	} else {
-		r.cf.Add("p.NeedOne([]func() bool{\n")
-	}
-	r.cf.Inc()
-	return &r
-}
-
-func (g *GoGenerator) EndGroup(gr Group) string {
-	bg := gr.(*baseGroup)
-	bg.cf.Dec()
-	bg.cf.Add("})")
-	return bg.cf.String()
 }
 
 func helper(gen Generator, node *Node) (retstring string) {

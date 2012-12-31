@@ -63,8 +63,9 @@ func TestParser(t *testing.T) {
 			t.Fatalf("Didn't parse correctly\n")
 		} else {
 			root := p.RootNode()
-			if root.Range.End != len(data) {
-				t.Fatalf("Parsing didn't finish")
+			back := root.Children[len(root.Children)-1]
+			if root.Range.End != len(p.ParserData.Data) {
+				t.Fatalf("Parsing didn't finish: %s, %v", back.Name, back.Range)
 			}
 		}
 	}
