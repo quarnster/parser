@@ -141,28 +141,15 @@ func helper(gen Generator, node *Node) (retstring string) {
 	case "DOT":
 		return gen.CheckAnyChar()
 	case "Identifier":
-		back := node.Children[len(node.Children)-1]
-		data := node.Data()
-		if back.Name == "Spacing" {
-			data = data[:strings.LastIndex(data, back.Data())]
-		}
-		return data
+		return node.Data()
 	case "Literal":
-		back := node.Children[len(node.Children)-1]
-		data := node.Data()
-		if back.Name == "Spacing" {
-			data = data[:strings.LastIndex(data, back.Data())]
-		}
-		return gen.CheckNext(data)
+		return gen.CheckNext(node.Data())
 	case "Expression":
 		if len(node.Children) == 1 {
 			return helper(gen, node.Children[0])
 		} else {
 			g := gen.BeginGroup(false)
-			for i, child := range node.Children {
-				if i&1 != 0 {
-					continue
-				}
+			for _, child := range node.Children {
 				g.Add(makeComplexReturn(helper(gen, child)))
 			}
 			return gen.EndGroup(g)
@@ -214,9 +201,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 
 		if front.Name == "Identifier" {
 			return makeCall(gen.MakeParserCall(helper(gen, front)))
-		} else if front.Name == "OPEN" {
-			return helper(gen, node.Children[1])
-		} else /*if front.Name == "Literal" */ {
+		} else {
 			return helper(gen, front)
 		}
 	case "Spacing", "Space":

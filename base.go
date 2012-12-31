@@ -26,21 +26,38 @@ import (
 	"strings"
 )
 
+func (p *Parser) Ignore(add func() bool) bool {
+	start := p.ParserData.Pos
+	ret := add()
+	if ret {
+		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
+			p.IgnoreRange.Start = start
+		}
+		p.IgnoreRange.End = p.ParserData.Pos
+	}
+	return ret
+}
+
 func (p *Parser) AddNode(add func() bool, name string) bool {
 	start := p.ParserData.Pos
 	shouldAdd := add()
 	p.Root.P = p
+	end := p.ParserData.Pos
 	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
+	p.Root.Cleanup(end, -1)
 
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = name
 	if shouldAdd {
 		node.P = p
+		node.Range.Clip(p.IgnoreRange)
 		c := make([]*Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	}
+	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
+		p.IgnoreRange = Range{}
 	}
 	return shouldAdd
 }
@@ -51,6 +68,7 @@ type Parser struct {
 		Pos  int
 		Data []rune
 	}
+	IgnoreRange Range
 }
 
 func (p *Parser) SetData(data string) {
@@ -61,9 +79,23 @@ func (p *Parser) SetData(data string) {
 func (p *Parser) Reset() {
 	p.ParserData.Pos = 0
 	p.Root = Node{}
+	p.IgnoreRange = Range{}
 }
 
 func (p *Parser) Data(start, end int) string {
+	l := len(p.ParserData.Data)
+	if l == 0 {
+		return ""
+	}
+	if start < 0 {
+		start = 0
+	}
+	if end > l {
+		end = l
+	}
+	if start > end {
+		return ""
+	}
 	return string(p.ParserData.Data[start:end])
 }
 

@@ -23,10 +23,10 @@ func main() {
 		if !p.Parse() {
 			log.Fatalf("Didn't parse correctly\n")
 		} else {
+			log.Println(p.RootNode())
 			back := p.RootNode().Children[len(p.RootNode().Children)-1]
 			if back.Name != "EndOfFile" {
 				log.Println("File didn't finish parsing")
-				log.Println(p.RootNode())
 			}
 			name := filepath.Base(os.Args[1])
 			name = name[:len(name)-len(filepath.Ext(name))]
@@ -88,7 +88,7 @@ func BenchmarkParser(b *testing.B) {
 				log.Fatalln(err)
 			}
 			//			log.Println(filepath.Join(dir, "testmain.go"))
-			c := exec.Command("go", "test", "-bench", ".")
+			c := exec.Command("go", "test" /*, "-bench", "."*/)
 			c.Dir = name
 			data, _ := c.CombinedOutput()
 			log.Println(string(data))

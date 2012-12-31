@@ -51,7 +51,24 @@ func TestParser(t *testing.T) {
 			if data, err := ioutil.ReadFile("./peg.go"); err != nil {
 				t.Fatalf("%s", err)
 			} else {
-				gen := parser.GoGenerator2{Name: "Peg", AddDebugLogging: false}
+				// t.Log(p.Root)
+				t.Log(p.RootNode())
+				gen := parser.GoGenerator2{
+					Name: "Peg", AddDebugLogging: false,
+					CustomActions: []parser.CustomAction{
+						{"Spacing", "p_Ignore(p, %s)"},
+						{"Space", "p_Ignore(p, %s)"},
+						{"EndOfLine", "p_Ignore(p, %s)"},
+						{"EndOfFile", "p_Ignore(p, %s)"},
+						{"IdentStart", "%s(p)"},
+						{"IdentCont", "%s(p)"},
+						{"SLASH", "p_Ignore(p, %s)"},
+						{"LEFTARROW", "p_Ignore(p, %s)"},
+						{"OPEN", "p_Ignore(p, %s)"},
+						{"CLOSE", "p_Ignore(p, %s)"},
+						{"Comment", "p_Ignore(p, %s)"},
+					},
+				}
 				data2 := []byte(parser.GenerateParser(p.RootNode(), &gen))
 				if cmp := bytes.Compare(data, data2); cmp != 0 {
 					d, _ := diff(data, data2)

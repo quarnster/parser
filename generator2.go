@@ -37,9 +37,7 @@ func (g *GoGenerator2) MakeParserFunction(node *Node) {
 	indenter.Inc()
 	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
 
-	if g.AddDebugLogging {
-	}
-	defaultAction := defName[:1] == strings.ToUpper(defName[:1])
+	defaultAction := true
 	for i := range g.CustomActions {
 		if defName == g.CustomActions[i].Name {
 			defaultAction = false
@@ -57,7 +55,7 @@ func (g *GoGenerator2) MakeParserFunction(node *Node) {
 	l   = len(p.ParserData.Data)
 )
 
-log.Println(fm.Level() + "` + defName + ` entered\")\n")
+log.Println(fm.Level() + "` + defName + ` entered")
 fm.Inc()
 res := ` + data + `
 fm.Dec()
@@ -232,24 +230,14 @@ freely, subject to the following restrictions:
 	if g.AddDebugLogging {
 		g.output += "var fm parser.CodeFormatter\n\n"
 	}
-	g.output += `func p_addNode(p *` + g.Name + `, add func(*` + g.Name + `) bool, name string) bool {
-	start := p.ParserData.Pos
-	shouldAdd := add(p)
-	p.Root.P = &p.Parser
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
-
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = name
-	if shouldAdd {
-		node.P = &p.Parser
-		c := make([]*parser.Node, len(node.Children))
-		copy(c, node.Children)
-		node.Children = c
-		p.Root.Append(node)
-	}
-	return shouldAdd
+	g.output += `func p_Ignore(p *` + g.Name + `, add func(*` + g.Name + `) bool) bool {
+	return p.Ignore(func() bool { return add(p) })
 }
+
+func p_addNode(p *` + g.Name + `, add func(*` + g.Name + `) bool, name string) bool {
+	return p.AddNode(func() bool { return add(p) }, name)
+}
+
 func p_Maybe(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
 	exp(p)
 	return true

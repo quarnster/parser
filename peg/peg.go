@@ -30,24 +30,14 @@ type Peg struct {
 	parser.Parser
 }
 
-func p_addNode(p *Peg, add func(*Peg) bool, name string) bool {
-	start := p.ParserData.Pos
-	shouldAdd := add(p)
-	p.Root.P = &p.Parser
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
-
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = name
-	if shouldAdd {
-		node.P = &p.Parser
-		c := make([]*parser.Node, len(node.Children))
-		copy(c, node.Children)
-		node.Children = c
-		p.Root.Append(node)
-	}
-	return shouldAdd
+func p_Ignore(p *Peg, add func(*Peg) bool) bool {
+	return p.Ignore(func() bool { return add(p) })
 }
+
+func p_addNode(p *Peg, add func(*Peg) bool, name string) bool {
+	return p.AddNode(func() bool { return add(p) }, name)
+}
+
 func p_Maybe(p *Peg, exp func(*Peg) bool) bool {
 	exp(p)
 	return true
@@ -238,7 +228,7 @@ func helper0_IdentStart(p *Peg) bool {
 }
 func p_IdentStart(p *Peg) bool {
 	// IdentStart    <- [a-zA-Z_]
-	return p_addNode(p, helper0_IdentStart, "IdentStart")
+	return helper0_IdentStart(p)
 }
 
 func helper0_IdentCont(p *Peg) bool {
@@ -249,7 +239,7 @@ func helper0_IdentCont(p *Peg) bool {
 }
 func p_IdentCont(p *Peg) bool {
 	// IdentCont     <- IdentStart / [0-9]
-	return p_addNode(p, helper0_IdentCont, "IdentCont")
+	return helper0_IdentCont(p)
 }
 
 func helper0_Literal(p *Peg) bool {
@@ -395,7 +385,7 @@ func helper0_LEFTARROW(p *Peg) bool {
 }
 func p_LEFTARROW(p *Peg) bool {
 	// LEFTARROW     <- "<-" Spacing
-	return p_addNode(p, helper0_LEFTARROW, "LEFTARROW")
+	return p_Ignore(p, helper0_LEFTARROW)
 }
 
 func helper0_SLASH(p *Peg) bool {
@@ -406,7 +396,7 @@ func helper0_SLASH(p *Peg) bool {
 }
 func p_SLASH(p *Peg) bool {
 	// SLASH         <- '/' Spacing
-	return p_addNode(p, helper0_SLASH, "SLASH")
+	return p_Ignore(p, helper0_SLASH)
 }
 
 func helper0_AND(p *Peg) bool {
@@ -472,7 +462,7 @@ func helper0_OPEN(p *Peg) bool {
 }
 func p_OPEN(p *Peg) bool {
 	// OPEN          <- '(' Spacing
-	return p_addNode(p, helper0_OPEN, "OPEN")
+	return p_Ignore(p, helper0_OPEN)
 }
 
 func helper0_CLOSE(p *Peg) bool {
@@ -486,7 +476,7 @@ func helper1_CLOSE(p *Peg) bool {
 }
 func p_CLOSE(p *Peg) bool {
 	// CLOSE         <- ')' Spacing
-	return p_addNode(p, helper1_CLOSE, "CLOSE")
+	return p_Ignore(p, helper1_CLOSE)
 }
 
 func helper0_DOT(p *Peg) bool {
@@ -508,7 +498,7 @@ func helper0_Spacing(p *Peg) bool {
 }
 func p_Spacing(p *Peg) bool {
 	// Spacing       <- (Space / Comment)*
-	return p_addNode(p, func(p *Peg) bool { return p_ZeroOrMore(p, helper0_Spacing) }, "Spacing")
+	return p_Ignore(p, func(p *Peg) bool { return p_ZeroOrMore(p, helper0_Spacing) })
 }
 
 func helper0_Comment(p *Peg) bool {
@@ -526,7 +516,7 @@ func helper1_Comment(p *Peg) bool {
 }
 func p_Comment(p *Peg) bool {
 	// Comment       <- '#' (!EndOfLine .)* EndOfLine
-	return p_addNode(p, helper1_Comment, "Comment")
+	return p_Ignore(p, helper1_Comment)
 }
 
 func helper0_Space(p *Peg) bool {
@@ -538,7 +528,7 @@ func helper0_Space(p *Peg) bool {
 }
 func p_Space(p *Peg) bool {
 	// Space         <- ' ' / '\t' / EndOfLine
-	return p_addNode(p, helper0_Space, "Space")
+	return p_Ignore(p, helper0_Space)
 }
 
 func helper0_EndOfLine(p *Peg) bool {
@@ -550,7 +540,7 @@ func helper0_EndOfLine(p *Peg) bool {
 }
 func p_EndOfLine(p *Peg) bool {
 	// EndOfLine     <- "\r\n" / '\n' / '\r'
-	return p_addNode(p, helper0_EndOfLine, "EndOfLine")
+	return p_Ignore(p, helper0_EndOfLine)
 }
 
 func helper0_EndOfFile(p *Peg) bool {
@@ -558,5 +548,5 @@ func helper0_EndOfFile(p *Peg) bool {
 }
 func p_EndOfFile(p *Peg) bool {
 	// EndOfFile     <- !.
-	return p_addNode(p, helper0_EndOfFile, "EndOfFile")
+	return p_Ignore(p, helper0_EndOfFile)
 }

@@ -30,6 +30,21 @@ type Range struct {
 	Start, End int
 }
 
+func (r *Range) Clip(r2 Range) (clipped bool) {
+	if r.Start >= r2.Start && r.Start < r2.End {
+		clipped = true
+		r.Start = r2.End
+	}
+	if r.End >= r2.Start && r.End <= r2.End {
+		clipped = true
+		r.End = r2.Start
+	}
+	if r.End < r.Start {
+		r.End = r.Start
+	}
+	return clipped
+}
+
 type Node struct {
 	Range    Range
 	Name     string
