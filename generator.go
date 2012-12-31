@@ -105,6 +105,7 @@ type GoGenerator struct {
 	CustomActions   []CustomAction
 	ParserVariables []string
 	Imports         []string
+	havefunctions   bool
 }
 
 func (g *GoGenerator) Begin() {
@@ -113,6 +114,7 @@ func (g *GoGenerator) Begin() {
 	if g.AddDebugLogging {
 		impList = append(impList, "log")
 	}
+	impList = append(impList, "parser")
 	if len(impList) > 0 {
 		imports += "\nimport (\n\t\"" + strings.Join(impList, "\"\n\t\"") + "\")\n"
 	}
@@ -140,8 +142,8 @@ freely, subject to the following restrictions:
 */
 `
 	members := g.ParserVariables
-	members = append(members, "Parser")
-	g.output += fmt.Sprintln("package parser\n" + imports + "\ntype " + g.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
+	members = append(members, "parser.Parser")
+	g.output += fmt.Sprintln("package " + strings.ToLower(g.Name) + "\n" + imports + "\ntype " + g.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
 	if g.AddDebugLogging {
 		g.output += "var fm CodeFormatter\n\n"
 	}
@@ -159,9 +161,13 @@ func (g *GoGenerator) Finish() string {
 func (g *GoGenerator) MakeParserFunction(node *Node) {
 	id := node.Children[0]
 	exp := node.Children[len(node.Children)-1]
-	data := helper(g, exp)
 	defName := helper(g, id)
+	data := helper(g, exp)
 
+	if !g.havefunctions {
+		g.havefunctions = true
+		g.output += "func (p *" + g.Name + ") Parse() bool {\n\treturn p." + defName + "()\n}\n"
+	}
 	indenter := CodeFormatter{}
 	indenter.Add("func (p *" + g.Name + ") " + defName + "() bool {\n")
 	indenter.Inc()
@@ -170,7 +176,7 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 	if g.AddDebugLogging {
 		indenter.Add(`var (
     pos = p.Pos()
-    l   = p.data.Len()
+    l   = p.ParserData.Len()
 )
 `)
 		indenter.Add(`log.Println(fm.level + "` + defName + " entered\")\n")
@@ -186,7 +192,7 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 	}
 	if defaultAction {
 		data = g.MakeFunction(g.Return(data))
-		data = "p.addNode(" + data + ", \"" + defName + "\")"
+		data = "p.AddNode(" + data + ", \"" + defName + "\")"
 	}
 	if g.AddDebugLogging {
 		indenter.Add("res := " + data)
@@ -196,9 +202,9 @@ func (g *GoGenerator) MakeParserFunction(node *Node) {
 }
 p2 := p.Pos()
 data := make([]byte, p2-pos)
-p.data.Seek(int64(pos), 0)
-p.data.Read(data)
-p.data.Seek(int64(p2), 0)
+p.ParserData.Seek(int64(pos), 0)
+p.ParserData.Read(data)
+p.ParserData.Seek(int64(p2), 0)
 `)
 		indenter.Add("log.Println(fm.level+\"" + defName + ` returned: ", res, ", ", pos, ", ", p.Pos(), ", ", l, string(data))` + "\n")
 		indenter.Add("return res\n")

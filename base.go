@@ -50,72 +50,76 @@ func (i *IntStack) Clear() {
 	i.data = i.data[:]
 }
 
-func (p *Parser) addNode(add func() bool, name string) bool {
+func (p *Parser) AddNode(add func() bool, name string) bool {
 	start := p.Pos()
 	shouldAdd := add()
-	p.currentNode.p = p
+	p.Root.P = p
 	// Remove any danglers
-	p.currentNode.Cleanup(p.Pos(), -1)
+	p.Root.Cleanup(p.Pos(), -1)
 
-	node := p.currentNode.Cleanup(start, p.Pos())
+	node := p.Root.Cleanup(start, p.Pos())
 	node.Name = name
 	if shouldAdd {
-		node.p = p
-		p.currentNode.Append(node)
+		node.P = p
+		p.Root.Append(node)
 	}
 	return shouldAdd
 }
 
 type Parser struct {
-	stack       IntStack
-	data        *strings.Reader
-	currentNode Node
+	stack      IntStack
+	ParserData *strings.Reader
+	Root       Node
 }
 
 func (p *Parser) Init() {
 }
 
 func (p *Parser) SetData(data string) {
-	p.currentNode = Node{}
+	p.ParserData = strings.NewReader(data)
+}
+
+func (p *Parser) Reset() {
+	p.Root = Node{}
 	p.stack = IntStack{}
-	p.data = strings.NewReader(data)
+	p.ParserData.Seek(0, 0)
 }
 
 func (p *Parser) Data(start, end int) string {
-	p.push()
+	p.Push()
 	defer p.Reject()
-	p.data.Seek(int64(start), 0)
+	p.ParserData.Seek(int64(start), 0)
 	b := make([]byte, end-start)
-	p.data.Read(b)
+	p.ParserData.Read(b)
 	return string(b)
 }
 
 func (p *Parser) RootNode() *Node {
-	return p.currentNode.Children[0]
+	return p.Root.Children[0]
 }
 
 func (p *Parser) Pos() int {
-	pos := p.data.Len()
-	p.data.Seek(0, 0)
-	pos = p.data.Len() - pos
-	p.data.Seek(int64(pos), 0)
+	pos := p.ParserData.Len()
+	p.ParserData.Seek(0, 0)
+	pos = p.ParserData.Len() - pos
+	p.ParserData.Seek(int64(pos), 0)
 	return pos
 }
 
-func (p *Parser) push() {
+func (p *Parser) Push() {
 	p.stack.Push(p.Pos())
 }
-func (p *Parser) pop() int {
+func (p *Parser) Pop() int {
 	return p.stack.Pop()
 }
 
 func (p *Parser) Accept() bool {
-	p.pop()
+	p.Pop()
 	return true
 }
 
 func (p *Parser) Reject() bool {
-	p.data.Seek(int64(p.pop()), 0)
+	p.ParserData.Seek(int64(p.Pop()), 0)
 	return false
 }
 
@@ -125,7 +129,7 @@ func (p *Parser) Maybe(exp func() bool) bool {
 }
 
 func (p *Parser) OneOrMore(exp func() bool) bool {
-	p.push()
+	p.Push()
 	if !exp() {
 		return p.Reject()
 	}
@@ -135,7 +139,7 @@ func (p *Parser) OneOrMore(exp func() bool) bool {
 }
 
 func (p *Parser) NeedAll(exps []func() bool) bool {
-	p.push()
+	p.Push()
 	for _, exp := range exps {
 		if !exp() {
 			return p.Reject()
@@ -145,7 +149,7 @@ func (p *Parser) NeedAll(exps []func() bool) bool {
 }
 
 func (p *Parser) NeedOne(exps []func() bool) bool {
-	p.push()
+	p.Push()
 	for _, exp := range exps {
 		if exp() {
 			return p.Accept()
@@ -161,7 +165,7 @@ func (p *Parser) ZeroOrMore(exp func() bool) bool {
 }
 
 func (p *Parser) And(exp func() bool) bool {
-	p.push()
+	p.Push()
 	ret := exp()
 	p.Reject()
 	return ret
@@ -172,15 +176,15 @@ func (p *Parser) Not(exp func() bool) bool {
 }
 
 func (p *Parser) AnyChar() bool {
-	if _, _, err := p.data.ReadRune(); err == nil {
+	if _, _, err := p.ParserData.ReadRune(); err == nil {
 		return true
 	}
 	return false
 }
 
-func (p *Parser) pushNext() (rune, bool) {
-	p.push()
-	c, _, err := p.data.ReadRune()
+func (p *Parser) PushNext() (rune, bool) {
+	p.Push()
+	c, _, err := p.ParserData.ReadRune()
 	if err != nil {
 		return nilrune, false
 	}
@@ -188,7 +192,7 @@ func (p *Parser) pushNext() (rune, bool) {
 }
 
 func (p *Parser) InRange(c1, c2 rune) bool {
-	if c, ok := p.pushNext(); !ok {
+	if c, ok := p.PushNext(); !ok {
 		return p.Reject()
 	} else {
 		if c >= c1 && c <= c2 {
@@ -199,7 +203,7 @@ func (p *Parser) InRange(c1, c2 rune) bool {
 }
 
 func (p *Parser) InSet(dataset string) bool {
-	if c, ok := p.pushNext(); !ok {
+	if c, ok := p.PushNext(); !ok {
 		return false
 	} else {
 		if strings.ContainsRune(dataset, c) {
@@ -209,9 +213,9 @@ func (p *Parser) InSet(dataset string) bool {
 	return p.Reject()
 }
 func (p *Parser) Next(n1 string) bool {
-	p.push()
+	p.Push()
 	n2 := make([]byte, len(n1))
-	if n, err := p.data.Read(n2); err != nil || n != len(n2) || bytes.Compare([]byte(n1), n2) != 0 {
+	if n, err := p.ParserData.Read(n2); err != nil || n != len(n2) || bytes.Compare([]byte(n1), n2) != 0 {
 		return p.Reject()
 	}
 	return p.Accept()

@@ -6,75 +6,90 @@ import (
 	"os"
 	"os/exec"
 	"parser"
+	"parser/peg"
 	"path/filepath"
+	"strings"
 )
 
 func main() {
 	if len(os.Args) != 3 {
 		log.Fatalf("Usage: %s <peg file> <parser input file>\n", os.Args[0])
 	}
-	p := parser.PegParser{}
+	p := peg.Peg{}
 	if data, err := ioutil.ReadFile(os.Args[1]); err != nil {
 		log.Fatalf("%s", err)
 	} else {
 		p.SetData(string(data))
-		if !p.Grammar() {
+		if !p.Parse() {
 			log.Fatalf("Didn't parse correctly\n")
 		} else {
 			back := p.RootNode().Children[len(p.RootNode().Children)-1]
 			if back.Name != "EndOfFile" {
 				log.Println("File didn't finish parsing")
-				log.Println(p.RootNode())
+				//log.Println(p.RootNode())
 			}
-			parserEntry := "DoesntExist"
-			for _, node := range p.RootNode().Children {
-				if node.Name == "Definition" {
-					parserEntry = node.Children[0].Data()
-					break
-				}
-			}
-			dir, err := ioutil.TempDir("", "parser")
-			if err != nil {
+			name := filepath.Base(os.Args[1])
+			name = name[:len(name)-len(filepath.Ext(name))]
+			if err := os.Mkdir(name, 0755); err != nil && !os.IsExist(err) {
 				log.Fatalln(err)
 			}
-			defer os.RemoveAll(dir)
-			if err := ioutil.WriteFile(filepath.Join(".", "testparser.go"), []byte(parser.GenerateParser(p.RootNode(), &parser.GoGenerator{
-				Name:            "Test",
+			var abs string
+			if abs, err = filepath.Abs(os.Args[2]); err != nil {
+				log.Fatalln(err)
+			}
+
+			gen := parser.GoGenerator2{
+				Name:            strings.ToTitle(name),
 				AddDebugLogging: false,
-			})), 0644); err != nil {
+			}
+			if err := ioutil.WriteFile(filepath.Join("./"+name, name+".go"), []byte(parser.GenerateParser(p.RootNode(), &gen)), 0644); err != nil {
 				log.Fatalln(err)
 			}
 
-			if err := ioutil.WriteFile(filepath.Join(dir, "testmain.go"), []byte(`package main
-
+			if err := ioutil.WriteFile(filepath.Join("./"+name, name+"_test.go"), []byte(`package `+name+`
 import (
 	"io/ioutil"
 	"log"
-	"parser"
+	"testing"
 )
-func main() {
-	p := parser.Test{}
-	if data, err := ioutil.ReadFile("`+os.Args[2]+`"); err != nil {
+
+func TestParser(t *testing.T) {
+	var p `+gen.Name+`
+	if data, err := ioutil.ReadFile("`+abs+`"); err != nil {
 		log.Fatalf("%s", err)
 	} else {
 		p.SetData(string(data))
-		if !p.`+parserEntry+`() {
-			log.Fatalf("Didn't parse correctly\n")
+		if !p.Parse() {
+			t.Fatalf("Didn't parse correctly\n")
 		} else {
 			root := p.RootNode()
-			log.Println(root)
 			if root.Range.End != len(data) {
-				log.Println("Parsing didn't finish")
+				t.Fatalf("Parsing didn't finish")
 			}
 		}
 	}
 }
 
+func BenchmarkParser(b *testing.B) {
+	var p `+gen.Name+`
+	if data, err := ioutil.ReadFile("`+abs+`"); err != nil {
+		b.Fatalf("%s", err)
+	} else {
+		p.SetData(string(data))
+		for i := 0; i < b.N; i++ { //use b.N for looping
+			p.Reset()
+			p.Parse()
+		}
+	}
+}
+
+
 `), 0644); err != nil {
 				log.Fatalln(err)
 			}
-			log.Println(filepath.Join(dir, "testmain.go"))
-			c := exec.Command("go", "run", filepath.Join(dir, "testmain.go"))
+			//			log.Println(filepath.Join(dir, "testmain.go"))
+			c := exec.Command("go", "test", "-bench", ".")
+			c.Dir = name
 			data, _ := c.CombinedOutput()
 			log.Println(string(data))
 			// r1, err := c.StderrPipe()

@@ -34,7 +34,7 @@ type Node struct {
 	Range    Range
 	Name     string
 	Children []*Node
-	p        *Parser
+	P        *Parser
 }
 
 func (n *Node) format(cf *CodeFormatter) {
@@ -47,7 +47,7 @@ func (n *Node) format(cf *CodeFormatter) {
 }
 
 func (n *Node) Data() string {
-	return n.p.Data(n.Range.Start, n.Range.End)
+	return n.P.Data(n.Range.Start, n.Range.End)
 }
 
 func (n *Node) String() string {
