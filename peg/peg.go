@@ -23,137 +23,103 @@ freely, subject to the following restrictions:
 package peg
 
 import (
-	"strings"
 	"parser"
-	"bytes"
 )
 
 type Peg struct {
 	parser.Parser
 }
 
-
 const (
-    nilrune = '\u0000'
+	nilrune = '\u0000'
 )
 
 func p_addNode(p *Peg, add func(*Peg) bool, name string) bool {
-    start := p.Pos()
-    shouldAdd := add(p)
-    p.Root.P = &p.Parser
-    // Remove any danglers
-    p.Root.Cleanup(p.Pos(), -1)
+	start := p.ParserData.Pos
+	shouldAdd := add(p)
+	p.Root.P = &p.Parser
+	// Remove any danglers
+	p.Root.Cleanup(p.ParserData.Pos, -1)
 
-    node := p.Root.Cleanup(start, p.Pos())
-    node.Name = name
-    if shouldAdd {
-        node.P = &p.Parser
-        p.Root.Append(node)
-    }
-    return shouldAdd
+	node := p.Root.Cleanup(start, p.ParserData.Pos)
+	node.Name = name
+	if shouldAdd {
+		node.P = &p.Parser
+		p.Root.Append(node)
+	}
+	return shouldAdd
 }
 func p_Maybe(p *Peg, exp func(*Peg) bool) bool {
-    exp(p)
-    return true
+	exp(p)
+	return true
 }
 
 func p_OneOrMore(p *Peg, exp func(*Peg) bool) bool {
-    p.Push()
-    if !exp(p) {
-        return p.Reject()
-    }
-    for exp(p) {
-    }
-    return p.Accept()
+	save := p.ParserData.Pos
+	if !exp(p) {
+		p.ParserData.Pos = save
+		return false
+	}
+	for exp(p) {
+	}
+	return true
 }
 
 func p_NeedAll(p *Peg, exps []func(*Peg) bool) bool {
-    p.Push()
-    for _, exp := range exps {
-        if !exp(p) {
-            return p.Reject()
-        }
-    }
-    return p.Accept()
+	save := p.ParserData.Pos
+	for _, exp := range exps {
+		if !exp(p) {
+			p.ParserData.Pos = save
+			return false
+		}
+	}
+	return true
 }
 
 func p_NeedOne(p *Peg, exps []func(*Peg) bool) bool {
-    p.Push()
-    for _, exp := range exps {
-        if exp(p) {
-            return p.Accept()
-        }
-    }
-    return p.Reject()
+	save := p.ParserData.Pos
+	for _, exp := range exps {
+		if exp(p) {
+			return true
+		}
+	}
+	p.ParserData.Pos = save
+	return false
 }
 
 func p_ZeroOrMore(p *Peg, exp func(*Peg) bool) bool {
-    for exp(p) {
-    }
-    return true
+	for exp(p) {
+	}
+	return true
 }
 
 func p_And(p *Peg, exp func(*Peg) bool) bool {
-    p.Push()
-    ret := exp(p)
-    p.Reject()
-    return ret
+	save := p.ParserData.Pos
+	ret := exp(p)
+	p.ParserData.Pos = save
+	return ret
 }
 
 func p_Not(p *Peg, exp func(*Peg) bool) bool {
-    return !p_And(p, exp)
+	return !p_And(p, exp)
 }
 
 func p_AnyChar(p *Peg) bool {
-    if _, _, err := p.ParserData.ReadRune(); err == nil {
-        return true
-    }
-    return false
-    /*
-    return p.AnyChar()
-    */
-}
-
-func p_PushNext(p *Peg) (rune, bool) {
-    p.Push()
-    c, _, err := p.ParserData.ReadRune()
-    if err != nil {
-        return nilrune, false
-    }
-    return c, true
-
-//  return p.PushNext()
+	return p.AnyChar()
+	/*
+	   return p.AnyChar()
+	*/
 }
 
 func p_InRange(p *Peg, c1, c2 rune) bool {
-    if c, ok := p_PushNext(p); !ok {
-        return p.Reject()
-    } else {
-        if c >= c1 && c <= c2 {
-            return p.Accept()
-        }
-    }
-    return p.Reject()
+	return p.InRange(c1, c2)
 }
 
 func p_InSet(p *Peg, dataset string) bool {
-    if c, ok := p_PushNext(p); !ok {
-        return false
-    } else {
-        if strings.ContainsRune(dataset, c) {
-            return p.Accept()
-        }
-    }
-    return p.Reject()
+	return p.InSet(dataset)
 }
 func p_Next(p *Peg, n1 string) bool {
-    p.Push()
-    n2 := make([]byte, len(n1))
-    if n, err := p.ParserData.Read(n2); err != nil || n != len(n2) || bytes.Compare([]byte(n1), n2) != 0 {
-        return p.Reject()
-    }
-    return p.Accept()
-//  return p.Next(n1)
+	return p.Next(n1)
 }
 
 func (p *Peg) Parse() bool {

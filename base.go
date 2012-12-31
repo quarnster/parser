@@ -23,41 +23,22 @@ freely, subject to the following restrictions:
 package parser
 
 import (
-	"bytes"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
-	nilrune = '\u0000'
+	Nilrune = '\u0000'
 )
 
-type IntStack struct {
-	data []int
-}
-
-func (i *IntStack) Push(value int) {
-	i.data = append(i.data, value)
-}
-
-func (i *IntStack) Pop() (ret int) {
-	end := len(i.data) - 1
-	ret = i.data[end]
-	i.data = i.data[:end]
-	return
-}
-
-func (i *IntStack) Clear() {
-	i.data = i.data[:]
-}
-
 func (p *Parser) AddNode(add func() bool, name string) bool {
-	start := p.Pos()
+	start := p.ParserData.Pos
 	shouldAdd := add()
 	p.Root.P = p
 	// Remove any danglers
-	p.Root.Cleanup(p.Pos(), -1)
+	p.Root.Cleanup(p.ParserData.Pos, -1)
 
-	node := p.Root.Cleanup(start, p.Pos())
+	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = name
 	if shouldAdd {
 		node.P = p
@@ -67,60 +48,44 @@ func (p *Parser) AddNode(add func() bool, name string) bool {
 }
 
 type Parser struct {
-	stack      IntStack
-	ParserData *strings.Reader
 	Root       Node
+	ParserData struct {
+		Size int
+		Pos  int
+		Data string
+	}
 }
 
-func (p *Parser) Init() {
+func (p *Parser) ReadRune() rune {
+	if p.ParserData.Pos >= len(p.ParserData.Data) {
+		return Nilrune
+	}
+	if c := p.ParserData.Data[p.ParserData.Pos]; c < utf8.RuneSelf {
+		p.ParserData.Pos++
+		return rune(c)
+	}
+	ch, size := utf8.DecodeRuneInString(p.ParserData.Data[p.ParserData.Pos:])
+	p.ParserData.Pos += size
+	return ch
 }
 
 func (p *Parser) SetData(data string) {
-	p.ParserData = strings.NewReader(data)
+	p.ParserData.Size = len(data)
+	p.ParserData.Data = data
+	p.Reset()
 }
 
 func (p *Parser) Reset() {
+	p.ParserData.Pos = 0
 	p.Root = Node{}
-	p.stack = IntStack{}
-	p.ParserData.Seek(0, 0)
 }
 
 func (p *Parser) Data(start, end int) string {
-	p.Push()
-	defer p.Reject()
-	p.ParserData.Seek(int64(start), 0)
-	b := make([]byte, end-start)
-	p.ParserData.Read(b)
-	return string(b)
+	return p.ParserData.Data[start:end]
 }
 
 func (p *Parser) RootNode() *Node {
 	return p.Root.Children[0]
-}
-
-func (p *Parser) Pos() int {
-	pos := p.ParserData.Len()
-	p.ParserData.Seek(0, 0)
-	pos = p.ParserData.Len() - pos
-	p.ParserData.Seek(int64(pos), 0)
-	return pos
-}
-
-func (p *Parser) Push() {
-	p.stack.Push(p.Pos())
-}
-func (p *Parser) Pop() int {
-	return p.stack.Pop()
-}
-
-func (p *Parser) Accept() bool {
-	p.Pop()
-	return true
-}
-
-func (p *Parser) Reject() bool {
-	p.ParserData.Seek(int64(p.Pop()), 0)
-	return false
 }
 
 func (p *Parser) Maybe(exp func() bool) bool {
@@ -129,33 +94,36 @@ func (p *Parser) Maybe(exp func() bool) bool {
 }
 
 func (p *Parser) OneOrMore(exp func() bool) bool {
-	p.Push()
+	save := p.ParserData.Pos
 	if !exp() {
-		return p.Reject()
+		p.ParserData.Pos = save
+		return false
 	}
 	for exp() {
 	}
-	return p.Accept()
+	return true
 }
 
 func (p *Parser) NeedAll(exps []func() bool) bool {
-	p.Push()
+	save := p.ParserData.Pos
 	for _, exp := range exps {
 		if !exp() {
-			return p.Reject()
+			p.ParserData.Pos = save
+			return false
 		}
 	}
-	return p.Accept()
+	return true
 }
 
 func (p *Parser) NeedOne(exps []func() bool) bool {
-	p.Push()
+	save := p.ParserData.Pos
 	for _, exp := range exps {
 		if exp() {
-			return p.Accept()
+			return true
 		}
 	}
-	return p.Reject()
+	p.ParserData.Pos = save
+	return false
 }
 
 func (p *Parser) ZeroOrMore(exp func() bool) bool {
@@ -165,9 +133,9 @@ func (p *Parser) ZeroOrMore(exp func() bool) bool {
 }
 
 func (p *Parser) And(exp func() bool) bool {
-	p.Push()
+	save := p.ParserData.Pos
 	ret := exp()
-	p.Reject()
+	p.ParserData.Pos = save
 	return ret
 }
 
@@ -176,47 +144,45 @@ func (p *Parser) Not(exp func() bool) bool {
 }
 
 func (p *Parser) AnyChar() bool {
-	if _, _, err := p.ParserData.ReadRune(); err == nil {
-		return true
-	}
-	return false
-}
-
-func (p *Parser) PushNext() (rune, bool) {
-	p.Push()
-	c, _, err := p.ParserData.ReadRune()
-	if err != nil {
-		return nilrune, false
-	}
-	return c, true
+	return p.ReadRune() != Nilrune
 }
 
 func (p *Parser) InRange(c1, c2 rune) bool {
-	if c, ok := p.PushNext(); !ok {
-		return p.Reject()
+	save := p.ParserData.Pos
+	if c := p.ReadRune(); c == Nilrune {
+		return false
 	} else {
 		if c >= c1 && c <= c2 {
-			return p.Accept()
+			return true
 		}
 	}
-	return p.Reject()
+	p.ParserData.Pos = save
+	return false
 }
 
 func (p *Parser) InSet(dataset string) bool {
-	if c, ok := p.PushNext(); !ok {
+	save := p.ParserData.Pos
+	if c := p.ReadRune(); c == Nilrune {
 		return false
 	} else {
 		if strings.ContainsRune(dataset, c) {
-			return p.Accept()
+			return true
 		}
 	}
-	return p.Reject()
+	p.ParserData.Pos = save
+	return false
 }
+
 func (p *Parser) Next(n1 string) bool {
-	p.Push()
-	n2 := make([]byte, len(n1))
-	if n, err := p.ParserData.Read(n2); err != nil || n != len(n2) || bytes.Compare([]byte(n1), n2) != 0 {
-		return p.Reject()
+	s := p.ParserData.Pos
+	e := s + len(n1)
+	if e > p.ParserData.Size {
+		return false
 	}
-	return p.Accept()
+	// Todo: should really build a string out of runes to be 100% correct.
+	if !strings.EqualFold(n1, p.ParserData.Data[s:e]) {
+		return false
+	}
+	p.ParserData.Pos += len(n1)
+	return true
 }

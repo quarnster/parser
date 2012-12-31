@@ -169,7 +169,7 @@ func (g *GoGenerator2) Begin() {
 	if g.AddDebugLogging {
 		impList = append(impList, "log")
 	}
-	impList = append(impList, "strings", "parser", "bytes")
+	impList = append(impList, "parser")
 	if len(impList) > 0 {
 		imports += "\nimport (\n\t\"" + strings.Join(impList, "\"\n\t\"") + "\"\n)\n"
 	}
@@ -208,13 +208,13 @@ const (
 )
 
 func p_addNode(p *` + g.Name + `, add func(*` + g.Name + `) bool, name string) bool {
-    start := p.Pos()
+    start := p.ParserData.Pos
     shouldAdd := add(p)
     p.Root.P = &p.Parser
     // Remove any danglers
-    p.Root.Cleanup(p.Pos(), -1)
+    p.Root.Cleanup(p.ParserData.Pos, -1)
 
-    node := p.Root.Cleanup(start, p.Pos())
+    node := p.Root.Cleanup(start, p.ParserData.Pos)
     node.Name = name
     if shouldAdd {
         node.P = &p.Parser
@@ -228,33 +228,36 @@ func p_Maybe(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
 }
 
 func p_OneOrMore(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
-    p.Push()
+    save := p.ParserData.Pos
     if !exp(p) {
-        return p.Reject()
+        p.ParserData.Pos = save
+        return false
     }
     for exp(p) {
     }
-    return p.Accept()
+    return true
 }
 
 func p_NeedAll(p *` + g.Name + `, exps []func(*` + g.Name + `) bool) bool {
-    p.Push()
+    save := p.ParserData.Pos
     for _, exp := range exps {
         if !exp(p) {
-            return p.Reject()
+            p.ParserData.Pos = save
+            return false
         }
     }
-    return p.Accept()
+    return true
 }
 
 func p_NeedOne(p *` + g.Name + `, exps []func(*` + g.Name + `) bool) bool {
-    p.Push()
+    save := p.ParserData.Pos
     for _, exp := range exps {
         if exp(p) {
-            return p.Accept()
+            return true
         }
     }
-    return p.Reject()
+    p.ParserData.Pos = save
+    return false
 }
 
 func p_ZeroOrMore(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
@@ -264,9 +267,9 @@ func p_ZeroOrMore(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
 }
 
 func p_And(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
-    p.Push()
+    save := p.ParserData.Pos
     ret := exp(p)
-    p.Reject()
+    p.ParserData.Pos = save
     return ret
 }
 
@@ -275,55 +278,19 @@ func p_Not(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
 }
 
 func p_AnyChar(p *` + g.Name + `) bool {
-    if _, _, err := p.ParserData.ReadRune(); err == nil {
-        return true
-    }
-    return false
-    /*
     return p.AnyChar()
-    */
-}
-
-func p_PushNext(p *` + g.Name + `) (rune, bool) {
-    p.Push()
-    c, _, err := p.ParserData.ReadRune()
-    if err != nil {
-        return nilrune, false
-    }
-    return c, true
-
-//  return p.PushNext()
 }
 
 func p_InRange(p *` + g.Name + `, c1, c2 rune) bool {
-    if c, ok := p_PushNext(p); !ok {
-        return p.Reject()
-    } else {
-        if c >= c1 && c <= c2 {
-            return p.Accept()
-        }
-    }
-    return p.Reject()
+    return p.InRange(c1, c2)
 }
 
 func p_InSet(p *` + g.Name + `, dataset string) bool {
-    if c, ok := p_PushNext(p); !ok {
-        return false
-    } else {
-        if strings.ContainsRune(dataset, c) {
-            return p.Accept()
-        }
-    }
-    return p.Reject()
+    return p.InSet(dataset)
 }
+
 func p_Next(p *` + g.Name + `, n1 string) bool {
-    p.Push()
-    n2 := make([]byte, len(n1))
-    if n, err := p.ParserData.Read(n2); err != nil || n != len(n2) || bytes.Compare([]byte(n1), n2) != 0 {
-        return p.Reject()
-    }
-    return p.Accept()
-//  return p.Next(n1)
+    return p.Next(n1)
 }
 
 `
