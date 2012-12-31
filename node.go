@@ -38,12 +38,16 @@ type Node struct {
 }
 
 func (n *Node) format(cf *CodeFormatter) {
-	cf.Add(fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data()))
-	cf.Inc()
-	for _, child := range n.Children {
-		child.format(cf)
+	if len(n.Children) == 0 {
+		cf.Add(fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data()))
+	} else {
+		cf.Add(fmt.Sprintf("%d-%d: \"%s\"\n", n.Range.Start, n.Range.End, n.Name))
+		cf.Inc()
+		for _, child := range n.Children {
+			child.format(cf)
+		}
+		cf.Dec()
 	}
-	cf.Dec()
 }
 
 func (n *Node) Data() string {

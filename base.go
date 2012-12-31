@@ -37,6 +37,9 @@ func (p *Parser) AddNode(add func() bool, name string) bool {
 	node.Name = name
 	if shouldAdd {
 		node.P = p
+		c := make([]*Node, len(node.Children))
+		copy(c, node.Children)
+		node.Children = c
 		p.Root.Append(node)
 	}
 	return shouldAdd

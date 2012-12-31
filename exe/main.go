@@ -26,7 +26,7 @@ func main() {
 			back := p.RootNode().Children[len(p.RootNode().Children)-1]
 			if back.Name != "EndOfFile" {
 				log.Println("File didn't finish parsing")
-				//log.Println(p.RootNode())
+				log.Println(p.RootNode())
 			}
 			name := filepath.Base(os.Args[1])
 			name = name[:len(name)-len(filepath.Ext(name))]
@@ -63,9 +63,8 @@ func TestParser(t *testing.T) {
 			t.Fatalf("Didn't parse correctly\n")
 		} else {
 			root := p.RootNode()
-			back := root.Children[len(root.Children)-1]
 			if root.Range.End != len(p.ParserData.Data) {
-				t.Fatalf("Parsing didn't finish: %s, %v", back.Name, back.Range)
+				t.Fatalf("Parsing didn't finish: %v", root)
 			}
 		}
 	}

@@ -7,4 +7,4 @@ close <- ']'
 KeyValuePair <- Key '=' Value endOfLine
 Key <- !'[' (!'=' .)+
 Value <- (!endOfLine .)*
-endOfLine   <- '\r\n' / \n' / '\r'
+endOfLine   <- "\r\n" / '\n' / '\r'
