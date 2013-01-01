@@ -148,20 +148,29 @@ func (g *GoGenerator2) CheckInRange(a, b string) string {
 func (g *GoGenerator2) CheckInSet(a string) string {
 	a = strings.Replace(a, "\\[", "[", -1)
 	a = strings.Replace(a, "\\]", "]", -1)
-	a = strings.Replace(a, "\n", "\\n", -1)
-	a = strings.Replace(a, "\r", "\\r", -1)
-	a = strings.Replace(a, "\"", "\\\"", -1)
+	tests := ""
+	for i := 0; i < len(a); i++ {
+		if len(tests) > 0 {
+			tests += " || "
+		}
+		c2 := string(a[i])
+		if c2[0] == '\\' {
+			i++
+			c2 += string(a[i])
+		}
+		if c2 == "'" {
+			c2 = "\\'"
+		}
+
+		tests += "c == '" + c2 + "'"
+	}
 	return `{
 	accept = false
 	if p.ParserData.Pos < len(p.ParserData.Data) {
-		dataset := []rune("` + a + `")
 		c := p.ParserData.Data[p.ParserData.Pos]
-		for _, r := range dataset {
-			if r == c {
-				p.ParserData.Pos++
-				accept = true
-				break
-			}
+		if ` + tests + ` {
+			p.ParserData.Pos++
+			accept = true
 		}
 	}
 }`
@@ -188,37 +197,37 @@ func (g *GoGenerator2) CheckNext(a string) string {
 }`
 	}
 	a = a[1 : len(a)-1]
-	ret := ""
-	for i := 0; i < len(a); i++ {
-		if len(ret) != 0 {
-			ret += ", "
+	tests := ""
+	pos := 0
+	for i := 0; i < len(a); i, pos = i+1, pos+1 {
+		if len(tests) > 0 {
+			tests += " || "
 		}
-		ch := string(a[i])
-		if a[i] == '\\' {
+		c2 := string(a[i])
+		if c2[0] == '\\' {
 			i++
-			ch += string(a[i])
+			c2 += string(a[i])
 		}
-		ret += fmt.Sprintf("'%s'", ch)
+		if c2 == "'" {
+			c2 = "\\'"
+		}
+		tests += fmt.Sprintf("p.ParserData.Data[s+%d] != '%s'", pos, c2)
 	}
-	return `{
+	return fmt.Sprintf(`{
 	accept = true
-	n1 := []rune{` + ret + `}
 	s := p.ParserData.Pos
-	e := s + len(n1)
+	e := s + %d
 	if e > len(p.ParserData.Data) {
 		accept = false
 	} else {
-		for i := 0; i < len(n1); i++ {
-			if n1[i] != p.ParserData.Data[s+i] {
-				accept = false
-				break
-			}
+		if  %s {
+			accept = false
 		}
 	}
-	if (accept) {
-		p.ParserData.Pos += len(n1)
+	if accept {
+		p.ParserData.Pos += %d
 	}
-}`
+}`, pos, tests, pos)
 }
 
 func (g *GoGenerator2) AssertNot(a string) string {
@@ -233,30 +242,42 @@ func (g *GoGenerator2) AssertAnd(a string) string {
 }
 
 func (g *GoGenerator2) ZeroOrMore(a string) string {
-	return `func(p *` + g.Name + `) bool {
-	accept := true
-	` + g.Call(a) + `
-	for accept {
-		` + g.Call(a) + `
-	}
-	` + g.Return("true") + `
-}`
+	var cf CodeFormatter
+	cf.Add(`func(p *` + g.Name + ") bool {\n")
+	cf.Inc()
+	cf.Add("accept := true\n")
+	cf.Add(g.Call(a))
+	cf.Add("\nfor accept {\n")
+	cf.Inc()
+	cf.Add(g.Call(a))
+	cf.Dec()
+	cf.Add("\n}\n" + g.Return("true") + "\n")
+	cf.Dec()
+	cf.Add("}")
+	return cf.String()
 }
 
 func (g *GoGenerator2) OneOrMore(a string) string {
-	return `func(p *` + g.Name + `) bool {
-	save := p.ParserData.Pos
-	accept := true
-	` + g.Call(a) + `
-	if !accept {
-		p.ParserData.Pos = save
+	var cf CodeFormatter
+	cf.Add(`func(p *` + g.Name + ") bool {\n")
+	cf.Inc()
+	cf.Add(`save := p.ParserData.Pos
+accept := true
+` + g.Call(a) + `
+if !accept {
+	p.ParserData.Pos = save
 	` + g.Return("false") + `
-	}
-	for accept {
-		` + g.Call(a) + `
-	}
-	` + g.Return("true") + `
-}`
+}
+for accept {
+`)
+	cf.Inc()
+	cf.Add(g.Call(a) + "\n")
+	cf.Dec()
+	cf.Add(`}
+` + g.Return("true") + "\n")
+	cf.Dec()
+	cf.Add("}")
+	return cf.String()
 }
 
 func (g *GoGenerator2) Maybe(a string) string {
@@ -270,7 +291,7 @@ type needAllGroup struct {
 
 func (b *needAllGroup) Add(value string) {
 	b.cf.Add(b.g.Call(value) + `
-if(!accept) {
+if !accept {
 	p.ParserData.Pos = save
 	` + b.g.Return("false") + `
 }
@@ -283,7 +304,7 @@ type needOneGroup struct {
 }
 
 func (b *needOneGroup) Add(value string) {
-	b.cf.Add(b.g.Call(value) + "\nif(accept) { " + b.g.Return("true") + " }\n")
+	b.cf.Add(b.g.Call(value) + "\nif accept {\n\t" + b.g.Return("true") + "\n}\n")
 }
 
 func (g *GoGenerator2) BeginGroup(requireAll bool) Group {
