@@ -91,7 +91,7 @@ func (g *GoGenerator2) CheckInSet(a string) string {
 	a = strings.Replace(a, "\n", "\\n", -1)
 	a = strings.Replace(a, "\r", "\\r", -1)
 	a = strings.Replace(a, "\"", "\\\"", -1)
-	return "p_InSet(p, \"" + a + "\")"
+	return "p_InSet(p, []rune(\"" + a + "\"))"
 }
 
 func (g *GoGenerator2) CheckAnyChar() string {
@@ -198,7 +198,7 @@ func (g *GoGenerator2) Begin() {
 	if g.AddDebugLogging {
 		impList = append(impList, "log")
 	}
-	impList = append(impList, "parser", "strings")
+	impList = append(impList, "parser")
 	if len(impList) > 0 {
 		imports += "\nimport (\n\t\"" + strings.Join(impList, "\"\n\t\"") + "\"\n)\n"
 	}
@@ -379,14 +379,16 @@ func p_InRange(p *` + g.Name + `, c1, c2 rune) bool {
 	return false
 }
 
-func p_InSet(p *` + g.Name + `, dataset string) bool {
+func p_InSet(p *` + g.Name + `, dataset []rune) bool {
 	if p.ParserData.Pos >= len(p.ParserData.Data) {
 		return false
 	}
 	c := p.ParserData.Data[p.ParserData.Pos]
-	if strings.ContainsRune(dataset, c) {
-		p.ParserData.Pos++
-		return true
+	for _, r := range dataset {
+		if r == c {
+			p.ParserData.Pos++
+			return true
+		}
 	}
 	return false
 }
