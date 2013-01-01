@@ -101,7 +101,7 @@ log.Println(fm.Level()+"` + defName + ` returned: ", res, ", ", pos, ", ", p.Par
 return res
 `)
 	} else {
-		if strings.HasPrefix(data, "accept") {
+		if strings.HasPrefix(data, "accept") || data[0] == '{' {
 			indenter.Add(`accept := false
 ` + data + `
 return accept
@@ -243,15 +243,15 @@ func (g *GoGenerator2) AssertAnd(a string) string {
 
 func (g *GoGenerator2) ZeroOrMore(a string) string {
 	var cf CodeFormatter
-	cf.Add(`func(p *` + g.Name + ") bool {\n")
+	cf.Add("{\n")
 	cf.Inc()
-	cf.Add("accept := true\n")
 	cf.Add(g.Call(a))
 	cf.Add("\nfor accept {\n")
 	cf.Inc()
 	cf.Add(g.Call(a))
 	cf.Dec()
-	cf.Add("\n}\n" + g.Return("true") + "\n")
+	cf.Add("\n}\n")
+	cf.Add("accept = true\n")
 	cf.Dec()
 	cf.Add("}")
 	return cf.String()
@@ -259,22 +259,25 @@ func (g *GoGenerator2) ZeroOrMore(a string) string {
 
 func (g *GoGenerator2) OneOrMore(a string) string {
 	var cf CodeFormatter
-	cf.Add(`func(p *` + g.Name + ") bool {\n")
+	cf.Add("{\n")
 	cf.Inc()
 	cf.Add(`save := p.ParserData.Pos
-accept := true
 ` + g.Call(a) + `
 if !accept {
 	p.ParserData.Pos = save
 	` + g.Return("false") + `
-}
-for accept {
+} else {
+	for accept {
 `)
+	cf.Inc()
 	cf.Inc()
 	cf.Add(g.Call(a) + "\n")
 	cf.Dec()
 	cf.Add(`}
-` + g.Return("true") + "\n")
+accept = true
+`)
+	cf.Dec()
+	cf.Add("}\n")
 	cf.Dec()
 	cf.Add("}")
 	return cf.String()
@@ -285,17 +288,16 @@ func (g *GoGenerator2) Maybe(a string) string {
 }
 
 type needAllGroup struct {
-	cf CodeFormatter
-	g  Generator
+	cf    CodeFormatter
+	g     Generator
+	label string
 }
 
 func (b *needAllGroup) Add(value string) {
 	b.cf.Add(b.g.Call(value) + `
-if !accept {
-	p.ParserData.Pos = save
-	` + b.g.Return("false") + `
-}
+if accept {
 `)
+	b.cf.Inc()
 }
 
 type needOneGroup struct {
@@ -304,22 +306,21 @@ type needOneGroup struct {
 }
 
 func (b *needOneGroup) Add(value string) {
-	b.cf.Add(b.g.Call(value) + "\nif accept {\n\t" + b.g.Return("true") + "\n}\n")
+	b.cf.Add(b.g.Call(value) + "\nif !accept {\n")
+	b.cf.Inc()
 }
 
 func (g *GoGenerator2) BeginGroup(requireAll bool) Group {
 	if requireAll {
 		r := needAllGroup{g: g}
-		r.cf.Add("func(p *" + g.Name + `) bool {
-	accept := false
+		r.cf.Add(`{
 	save := p.ParserData.Pos
 `)
 		r.cf.Inc()
 		return &r
 	}
 	r := needOneGroup{g: g}
-	r.cf.Add("func(p *" + g.Name + `) bool {
-	accept := false
+	r.cf.Add(`{
 	save := p.ParserData.Pos
 `)
 	r.cf.Inc()
@@ -329,13 +330,20 @@ func (g *GoGenerator2) BeginGroup(requireAll bool) Group {
 func (g *GoGenerator2) EndGroup(gr Group) string {
 	switch t := gr.(type) {
 	case *needAllGroup:
-		t.cf.Add(g.Return("true") + "\n")
+		for len(t.cf.Level()) > 1 {
+			t.cf.Dec()
+			t.cf.Add("}\n")
+		}
+		t.cf.Add("if !accept {\n\tp.ParserData.Pos = save\n}\n")
 		t.cf.Dec()
 		t.cf.Add("}")
 		return t.cf.String()
 	case *needOneGroup:
-		t.cf.Add(`p.ParserData.Pos = save
-` + g.Return("false") + "\n")
+		for len(t.cf.Level()) > 1 {
+			t.cf.Dec()
+			t.cf.Add("}\n")
+		}
+		t.cf.Add("if !accept {\n\tp.ParserData.Pos = save\n}\n")
 		t.cf.Dec()
 		t.cf.Add("}")
 		return t.cf.String()
