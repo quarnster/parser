@@ -19,6 +19,41 @@ type GoGenerator2 struct {
 	currentName           string
 }
 
+func (g *GoGenerator2) AddNode(data, defName string) string {
+	return `accept = true
+start := p.ParserData.Pos
+` + g.Call(data) + `
+end := p.ParserData.Pos
+p.Root.P = p
+// Remove any danglers
+p.Root.Cleanup(p.ParserData.Pos, -1)
+node := p.Root.Cleanup(start, p.ParserData.Pos)
+node.Name = "` + defName + `"
+if accept {
+	node.P = p
+	node.Range.Clip(p.IgnoreRange)
+	c := make([]*parser.Node, len(node.Children))
+	copy(c, node.Children)
+	node.Children = c
+	p.Root.Append(node)
+}
+if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
+	p.IgnoreRange = parser.Range{}
+}`
+}
+
+func (g *GoGenerator2) Ignore(data string) string {
+	return `accept = true
+start := p.ParserData.Pos
+` + g.Call(data) + `
+if accept {
+	if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
+		p.IgnoreRange.Start = start
+	}
+	p.IgnoreRange.End = p.ParserData.Pos
+}
+`
+}
 func (g *GoGenerator2) MakeParserFunction(node *Node) {
 	id := node.Children[0]
 	exp := node.Children[len(node.Children)-1]
@@ -45,8 +80,7 @@ func (g *GoGenerator2) MakeParserFunction(node *Node) {
 		}
 	}
 	if defaultAction {
-		data = g.MakeFunction(data)
-		data = "p_addNode(p, " + data + ", \"" + defName + "\")"
+		data = g.AddNode(data, defName)
 	}
 	if g.AddDebugLogging {
 		indenter.Add(`var (
@@ -108,8 +142,7 @@ func (g *GoGenerator2) CheckInRange(a, b string) string {
 	} else {
 		accept = false
 	}
-}
-`
+}`
 }
 
 func (g *GoGenerator2) CheckInSet(a string) string {
@@ -118,30 +151,28 @@ func (g *GoGenerator2) CheckInSet(a string) string {
 	a = strings.Replace(a, "\n", "\\n", -1)
 	a = strings.Replace(a, "\r", "\\r", -1)
 	a = strings.Replace(a, "\"", "\\\"", -1)
-	return `func(p *` + g.Name + `) bool {
-	dataset := []rune("` + a + `")
-	if p.ParserData.Pos >= len(p.ParserData.Data) {
-		` + g.Return("false") + `
-	}
-	c := p.ParserData.Data[p.ParserData.Pos]
-	for _, r := range dataset {
-		if r == c {
-			p.ParserData.Pos++
-			` + g.Return("true") + `
+	return `{
+	accept = false
+	if p.ParserData.Pos < len(p.ParserData.Data) {
+		dataset := []rune("` + a + `")
+		c := p.ParserData.Data[p.ParserData.Pos]
+		for _, r := range dataset {
+			if r == c {
+				p.ParserData.Pos++
+				accept = true
+				break
+			}
 		}
 	}
-	` + g.Return("false") + `
 }`
 }
 
 func (g *GoGenerator2) CheckAnyChar() string {
-	return `func(p *` + g.Name + `) bool {
-	if p.ParserData.Pos >= len(p.ParserData.Data) {
-		` + g.Return("false") + `
-	}
-	p.ParserData.Pos++
-	` + g.Return("true") + `
-}`
+	return `if p.ParserData.Pos >= len(p.ParserData.Data) {
+	accept = false
+}
+p.ParserData.Pos++
+accept = true`
 }
 
 func (g *GoGenerator2) CheckNext(a string) string {
@@ -154,8 +185,7 @@ func (g *GoGenerator2) CheckNext(a string) string {
 } else {
 	p.ParserData.Pos++
 	accept = true
-}
-`
+}`
 	}
 	a = a[1 : len(a)-1]
 	ret := ""
@@ -188,16 +218,14 @@ func (g *GoGenerator2) CheckNext(a string) string {
 	if (accept) {
 		p.ParserData.Pos += len(n1)
 	}
-}
-`
+}`
 }
 
 func (g *GoGenerator2) AssertNot(a string) string {
 	return `s := p.ParserData.Pos
 ` + g.Call(a) + `
 p.ParserData.Pos = s
-accept = !accept
-`
+accept = !accept`
 }
 
 func (g *GoGenerator2) AssertAnd(a string) string {
@@ -412,42 +440,6 @@ func (p *` + g.Name + `) Data(start, end int) string {
 	}
 	return string(p.ParserData.Data[start:end])
 
-}
-
-func p_Ignore(p *` + g.Name + `, add func(*` + g.Name + `) bool) bool {
-	start := p.ParserData.Pos
-	ret := add(p)
-	if ret {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
-		}
-		p.IgnoreRange.End = p.ParserData.Pos
-	}
-	return ret
-}
-
-func p_addNode(p *` + g.Name + `, add func(*` + g.Name + `) bool, name string) bool {
-	start := p.ParserData.Pos
-	shouldAdd := add(p)
-	end := p.ParserData.Pos
-	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
-
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = name
-	if shouldAdd {
-		node.P = p
-		node.Range.Clip(p.IgnoreRange)
-		c := make([]*parser.Node, len(node.Children))
-		copy(c, node.Children)
-		node.Children = c
-		p.Root.Append(node)
-	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = parser.Range{}
-	}
-	return shouldAdd
 }
 `
 }

@@ -38,12 +38,12 @@ func main() {
 				log.Fatalln(err)
 			}
 
+			gen := parser.GoGenerator2{}
 			ignore := func(g parser.Generator, in string) string {
-				in = g.MakeFunction(in)
-				return "p_Ignore(p, " + in + ")"
+				return gen.Ignore(in)
 			}
 
-			gen := parser.GoGenerator2{
+			gen = parser.GoGenerator2{
 				Name:            strings.ToTitle(name),
 				AddDebugLogging: false,
 				CustomActions: []parser.CustomAction{

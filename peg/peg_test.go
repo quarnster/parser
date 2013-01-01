@@ -53,13 +53,14 @@ func TestParser(t *testing.T) {
 			} else {
 				// t.Log(p.Root)
 				t.Log(p.RootNode())
+				gen := parser.GoGenerator2{}
 				ignore := func(g parser.Generator, in string) string {
-					return "p_Ignore(p, " + g.MakeFunction(in) + ")"
+					return gen.Ignore(in)
 				}
 				justcall := func(g parser.Generator, in string) string {
 					return g.Call(in)
 				}
-				gen := parser.GoGenerator2{
+				gen = parser.GoGenerator2{
 					Name: "Peg", AddDebugLogging: false,
 					CustomActions: []parser.CustomAction{
 						{"Spacing", ignore},
