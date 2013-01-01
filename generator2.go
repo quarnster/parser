@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 )
@@ -41,12 +40,12 @@ func (g *GoGenerator2) MakeParserFunction(node *Node) {
 	for i := range g.CustomActions {
 		if defName == g.CustomActions[i].Name {
 			defaultAction = false
-			data = fmt.Sprintf(g.CustomActions[i].Action, g.MakeFunction(g.Return(data)))
+			data = g.CustomActions[i].Action(g, data)
 			break
 		}
 	}
 	if defaultAction {
-		data = g.MakeFunction(g.Return(data))
+		data = g.MakeFunction(data)
 		data = "p_addNode(p, " + data + ", \"" + defName + "\")"
 	}
 	if g.AddDebugLogging {
@@ -68,7 +67,14 @@ log.Println(fm.Level()+"` + defName + ` returned: ", res, ", ", pos, ", ", p.Par
 return res
 `)
 	} else {
-		indenter.Add("return " + data + "\n")
+		if strings.HasPrefix(data, "accept") {
+			indenter.Add(`accept := false
+` + data + `
+return accept
+`)
+		} else {
+			indenter.Add(g.Return(data) + "\n")
+		}
 	}
 	indenter.Dec()
 	indenter.Add("}\n\n")
@@ -77,12 +83,33 @@ return res
 	g.currentFunctions = ""
 	g.currentFunctionsCount = 0
 }
+
+func (g *GoGenerator2) accept() string {
+	return g.Return("true")
+	//	return "accept = true"
+}
+func (g *GoGenerator2) reject() string {
+	return g.Return("false")
+	//	return "accept = false"
+}
+
 func (g *GoGenerator2) MakeParserCall(value string) string {
 	return "p_" + value
 }
 
 func (g *GoGenerator2) CheckInRange(a, b string) string {
-	return "p_InRange(p, '" + a + "', '" + b + "')"
+	return `if p.ParserData.Pos >= len(p.ParserData.Data) {
+	accept = false
+} else {
+	c := p.ParserData.Data[p.ParserData.Pos]
+	if c >= '` + a + `' && c <= '` + b + `' {
+		p.ParserData.Pos++
+		accept = true
+	} else {
+		accept = false
+	}
+}
+`
 }
 
 func (g *GoGenerator2) CheckInSet(a string) string {
@@ -91,16 +118,44 @@ func (g *GoGenerator2) CheckInSet(a string) string {
 	a = strings.Replace(a, "\n", "\\n", -1)
 	a = strings.Replace(a, "\r", "\\r", -1)
 	a = strings.Replace(a, "\"", "\\\"", -1)
-	return "p_InSet(p, []rune(\"" + a + "\"))"
+	return `func(p *` + g.Name + `) bool {
+	dataset := []rune("` + a + `")
+	if p.ParserData.Pos >= len(p.ParserData.Data) {
+		` + g.Return("false") + `
+	}
+	c := p.ParserData.Data[p.ParserData.Pos]
+	for _, r := range dataset {
+		if r == c {
+			p.ParserData.Pos++
+			` + g.Return("true") + `
+		}
+	}
+	` + g.Return("false") + `
+}`
 }
 
 func (g *GoGenerator2) CheckAnyChar() string {
-	return "p_AnyChar(p)"
+	return `func(p *` + g.Name + `) bool {
+	if p.ParserData.Pos >= len(p.ParserData.Data) {
+		` + g.Return("false") + `
+	}
+	p.ParserData.Pos++
+	` + g.Return("true") + `
+}`
 }
 
 func (g *GoGenerator2) CheckNext(a string) string {
+	/*
+	 */
+
 	if a[0] == '\'' {
-		return "p_NextRune(p, " + a + ")"
+		return `if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ` + a + ` {
+	accept = false
+} else {
+	p.ParserData.Pos++
+	accept = true
+}
+`
 	}
 	a = a[1 : len(a)-1]
 	ret := ""
@@ -115,81 +170,172 @@ func (g *GoGenerator2) CheckNext(a string) string {
 		}
 		ret += fmt.Sprintf("'%s'", ch)
 	}
-	return "p_Next(p, []rune{" + ret + "})"
+	return `{
+	accept = true
+	n1 := []rune{` + ret + `}
+	s := p.ParserData.Pos
+	e := s + len(n1)
+	if e > len(p.ParserData.Data) {
+		accept = false
+	} else {
+		for i := 0; i < len(n1); i++ {
+			if n1[i] != p.ParserData.Data[s+i] {
+				accept = false
+				break
+			}
+		}
+	}
+	if (accept) {
+		p.ParserData.Pos += len(n1)
+	}
+}
+`
 }
 
 func (g *GoGenerator2) AssertNot(a string) string {
-	return "p_Not(p, " + a + ")"
+	return `s := p.ParserData.Pos
+` + g.Call(a) + `
+p.ParserData.Pos = s
+accept = !accept
+`
 }
 
 func (g *GoGenerator2) AssertAnd(a string) string {
-	return "p_And(p, " + a + ")"
+	return "p_And(p, " + g.Call(a) + ")"
 }
 
 func (g *GoGenerator2) ZeroOrMore(a string) string {
-	return "p_ZeroOrMore(p, " + a + ")"
+	return `func(p *` + g.Name + `) bool {
+	accept := true
+	` + g.Call(a) + `
+	for accept {
+		` + g.Call(a) + `
+	}
+	` + g.Return("true") + `
+}`
 }
 
 func (g *GoGenerator2) OneOrMore(a string) string {
-	return "p_OneOrMore(p, " + a + ")"
+	return `func(p *` + g.Name + `) bool {
+	save := p.ParserData.Pos
+	accept := true
+	` + g.Call(a) + `
+	if !accept {
+		p.ParserData.Pos = save
+	` + g.Return("false") + `
+	}
+	for accept {
+		` + g.Call(a) + `
+	}
+	` + g.Return("true") + `
+}`
 }
 
 func (g *GoGenerator2) Maybe(a string) string {
-	return "p_Maybe(p, " + a + ")"
+	return g.Call(a) + "\naccept = true"
+}
+
+type needAllGroup struct {
+	cf CodeFormatter
+	g  Generator
+}
+
+func (b *needAllGroup) Add(value string) {
+	b.cf.Add(b.g.Call(value) + `
+if(!accept) {
+	p.ParserData.Pos = save
+	` + b.g.Return("false") + `
+}
+`)
+}
+
+type needOneGroup struct {
+	cf CodeFormatter
+	g  Generator
+}
+
+func (b *needOneGroup) Add(value string) {
+	b.cf.Add(b.g.Call(value) + "\nif(accept) { " + b.g.Return("true") + " }\n")
 }
 
 func (g *GoGenerator2) BeginGroup(requireAll bool) Group {
-	r := baseGroup{}
 	if requireAll {
-		r.cf.Add("p_NeedAll(p, []func(*" + g.Name + ") bool{\n")
-	} else {
-		r.cf.Add("p_NeedOne(p, []func(*" + g.Name + ") bool{\n")
+		r := needAllGroup{g: g}
+		r.cf.Add("func(p *" + g.Name + `) bool {
+	accept := false
+	save := p.ParserData.Pos
+`)
+		r.cf.Inc()
+		return &r
 	}
+	r := needOneGroup{g: g}
+	r.cf.Add("func(p *" + g.Name + `) bool {
+	accept := false
+	save := p.ParserData.Pos
+`)
 	r.cf.Inc()
 	return &r
 }
 
 func (g *GoGenerator2) EndGroup(gr Group) string {
-	bg := gr.(*baseGroup)
-	bg.cf.Dec()
-	bg.cf.Add("})")
-	return bg.cf.String()
+	switch t := gr.(type) {
+	case *needAllGroup:
+		t.cf.Add(g.Return("true") + "\n")
+		t.cf.Dec()
+		t.cf.Add("}")
+		return t.cf.String()
+	case *needOneGroup:
+		t.cf.Add(`p.ParserData.Pos = save
+` + g.Return("false") + "\n")
+		t.cf.Dec()
+		t.cf.Add("}")
+		return t.cf.String()
+	}
+	panic(gr)
 }
 
 var inlinere = regexp.MustCompile(`^return ([\s\S]*?)\(p\)$`)
-var inlinere2 = regexp.MustCompile(`^return (\w+\(p, [^)]*\)|p.\w+\([^)]*\))($|\}\(p\)$)`)
+var inlinere2 = regexp.MustCompile(`^return (\w+\(p, [\s\S]*?\))($|\}\(p\)$)`)
 
 func (g *GoGenerator2) MakeFunction(value string) string {
-	if strings.HasSuffix(value, "}(p)") {
-		m1 := inlinere.MatchString(value)
-		mm1 := ""
-		if m1 {
-			mm1 = strings.Join(inlinere.FindStringSubmatch(value), "---")
-		}
-		log.Println(value, m1, mm1, inlinere2.MatchString(value))
+	if strings.HasSuffix(value, ")") || strings.HasSuffix(value, "}") {
+		return value
 	}
+
 	if inlinere.MatchString(value) {
 		return inlinere.FindStringSubmatch(value)[1]
 	} else if inlinere2.MatchString(value) {
 		return "func(p *" + g.Name + ") bool { " + value + " }"
 	}
-	fname := fmt.Sprintf("helper%d_%s", g.currentFunctionsCount, g.currentName)
-	g.currentFunctionsCount++
 	f := CodeFormatter{}
-	f.Add("func " + fname + "(p *" + g.Name + ") bool {\n")
+	f.Add("func(p *" + g.Name + ") bool {\n")
 	f.Inc()
-	f.Add(value)
+	f.Add("accept := true\n" + value + "\n" + g.Return("accept") + "\n")
 	f.Dec()
-	f.Add("\n}\n")
-	g.currentFunctions += f.String()
-	return fname
+	f.Add("\n}")
+	return f.String()
 }
 func (g *GoGenerator2) Return(value string) string {
 	return "return " + value
 }
 
+var (
+	callre1 = regexp.MustCompile(`^\s*accept\s`)
+	callre2 = regexp.MustCompile(`^\s*func\(`)
+)
+
 func (g *GoGenerator2) Call(value string) string {
-	return value + "(p)"
+	pref := "accept = "
+	if callre1.MatchString(value) {
+		pref = ""
+	}
+	if strings.HasSuffix(value, "(p)") {
+		return pref + value
+	}
+	if strings.HasPrefix(value, "p_") || callre2.MatchString(value) {
+		return pref + value + "(p)"
+	}
+	return value
 }
 
 func (g *GoGenerator2) Begin() {
@@ -302,118 +448,6 @@ func p_addNode(p *` + g.Name + `, add func(*` + g.Name + `) bool, name string) b
 		p.IgnoreRange = parser.Range{}
 	}
 	return shouldAdd
-}
-
-func p_Maybe(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
-	exp(p)
-	return true
-}
-
-func p_OneOrMore(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
-	save := p.ParserData.Pos
-	if !exp(p) {
-		p.ParserData.Pos = save
-		return false
-	}
-	for exp(p) {
-	}
-	return true
-}
-
-func p_NeedAll(p *` + g.Name + `, exps []func(*` + g.Name + `) bool) bool {
-	save := p.ParserData.Pos
-	for _, exp := range exps {
-		if !exp(p) {
-			p.ParserData.Pos = save
-			return false
-		}
-	}
-	return true
-}
-
-func p_NeedOne(p *` + g.Name + `, exps []func(*` + g.Name + `) bool) bool {
-	save := p.ParserData.Pos
-	for _, exp := range exps {
-		if exp(p) {
-			return true
-		}
-	}
-	p.ParserData.Pos = save
-	return false
-}
-
-func p_ZeroOrMore(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
-	for exp(p) {
-	}
-	return true
-}
-
-func p_And(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
-	save := p.ParserData.Pos
-	ret := exp(p)
-	p.ParserData.Pos = save
-	return ret
-}
-
-func p_Not(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
-	return !p_And(p, exp)
-}
-
-func p_AnyChar(p *` + g.Name + `) bool {
-	if p.ParserData.Pos >= len(p.ParserData.Data) {
-		return false
-	}
-	p.ParserData.Pos++
-	return true
-}
-
-func p_InRange(p *` + g.Name + `, c1, c2 rune) bool {
-	if p.ParserData.Pos >= len(p.ParserData.Data) {
-		return false
-	}
-	c := p.ParserData.Data[p.ParserData.Pos]
-	if c >= c1 && c <= c2 {
-		p.ParserData.Pos++
-		return true
-	}
-	return false
-}
-
-func p_InSet(p *` + g.Name + `, dataset []rune) bool {
-	if p.ParserData.Pos >= len(p.ParserData.Data) {
-		return false
-	}
-	c := p.ParserData.Data[p.ParserData.Pos]
-	for _, r := range dataset {
-		if r == c {
-			p.ParserData.Pos++
-			return true
-		}
-	}
-	return false
-}
-
-func p_NextRune(p *` + g.Name + `, n1 rune) bool {
-	if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != n1 {
-		return false
-	}
-	p.ParserData.Pos++
-	return true
-}
-
-func p_Next(p *` + g.Name + `, n1 []rune) bool {
-	s := p.ParserData.Pos
-	e := s + len(n1)
-	if e > len(p.ParserData.Data) {
-		return false
-	}
-	for i := 0; i < len(n1); i++ {
-		if n1[i] != p.ParserData.Data[s+i] {
-			return false
-		}
-	}
-	p.ParserData.Pos += len(n1)
-	return true
 }
 `
 }

@@ -38,16 +38,21 @@ func main() {
 				log.Fatalln(err)
 			}
 
+			ignore := func(g parser.Generator, in string) string {
+				in = g.MakeFunction(in)
+				return "p_Ignore(p, " + in + ")"
+			}
+
 			gen := parser.GoGenerator2{
 				Name:            strings.ToTitle(name),
 				AddDebugLogging: false,
 				CustomActions: []parser.CustomAction{
-					{"Spacing", "p_Ignore(p, %s)"},
-					{"Quote", "p_Ignore(p, %s)"},
-					{"QuotedText", "p_Ignore(p, %s)"},
-					{"Value", "p_Ignore(p, %s)"},
-					{"Values", "p_Ignore(p, %s)"},
-					{"KeyValuePairs", "p_Ignore(p, %s)"},
+					{"Spacing", ignore},
+					{"Quote", ignore},
+					{"QuotedText", ignore},
+					{"Value", ignore},
+					{"Values", ignore},
+					{"KeyValuePairs", ignore},
 				},
 			}
 			if err := ioutil.WriteFile(filepath.Join("./"+name, name+".go"), []byte(parser.GenerateParser(p.RootNode(), &gen)), 0644); err != nil {

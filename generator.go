@@ -97,22 +97,10 @@ type Generator interface {
 }
 type CustomAction struct {
 	Name   string
-	Action string
+	Action func(Generator, string) string
 }
 
 func helper(gen Generator, node *Node) (retstring string) {
-	makeReturn := func(value string) string {
-		return gen.Return(value)
-	}
-	makeCall := func(value string) string {
-		return gen.Call(value)
-	}
-	makeComplex := func(value string) string {
-		return gen.MakeFunction(value)
-	}
-	makeComplexReturn := func(value string) string {
-		return makeComplex(makeReturn(value))
-	}
 	switch node.Name {
 	case "Class":
 		others := ""
@@ -132,7 +120,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 		if len(exps) > 1 {
 			g := gen.BeginGroup(false)
 			for _, e := range exps {
-				g.Add(makeComplexReturn(e))
+				g.Add(e)
 			}
 			return gen.EndGroup(g)
 		} else {
@@ -150,7 +138,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 		} else {
 			g := gen.BeginGroup(false)
 			for _, child := range node.Children {
-				g.Add(makeComplexReturn(helper(gen, child)))
+				g.Add(helper(gen, child))
 			}
 			return gen.EndGroup(g)
 		}
@@ -161,7 +149,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 		} else {
 			g := gen.BeginGroup(true)
 			for _, child := range node.Children {
-				g.Add(makeComplexReturn(helper(gen, child)))
+				g.Add(helper(gen, child))
 			}
 			return gen.EndGroup(g)
 		}
@@ -174,9 +162,9 @@ func helper(gen Generator, node *Node) (retstring string) {
 			exp := helper(gen, node.Children[len(node.Children)-1])
 			switch front.Name {
 			case "NOT":
-				return gen.AssertNot(makeComplexReturn(exp))
+				return gen.AssertNot(exp)
 			case "AND":
-				return gen.AssertAnd(makeComplexReturn(exp))
+				return gen.AssertAnd(exp)
 			}
 		}
 		panic("Shouldn't reach this: " + front.Name)
@@ -185,7 +173,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 			return helper(gen, node.Children[0])
 		} else {
 			back := node.Children[len(node.Children)-1]
-			exp := makeComplexReturn(helper(gen, node.Children[0]))
+			exp := helper(gen, node.Children[0])
 			switch back.Name {
 			case "PLUS":
 				return gen.OneOrMore(exp)
@@ -200,7 +188,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 		front := node.Children[0]
 
 		if front.Name == "Identifier" {
-			return makeCall(gen.MakeParserCall(helper(gen, front)))
+			return gen.Call(gen.MakeParserCall(helper(gen, front)))
 		} else {
 			return helper(gen, front)
 		}
