@@ -80,8 +80,9 @@ return res
 func (g *GoGenerator2) MakeParserCall(value string) string {
 	return "p_" + value
 }
+
 func (g *GoGenerator2) CheckInRange(a, b string) string {
-	return "p.InRange('" + a + "', '" + b + "')"
+	return "p_InRange(p, '" + a + "', '" + b + "')"
 }
 
 func (g *GoGenerator2) CheckInSet(a string) string {
@@ -90,16 +91,16 @@ func (g *GoGenerator2) CheckInSet(a string) string {
 	a = strings.Replace(a, "\n", "\\n", -1)
 	a = strings.Replace(a, "\r", "\\r", -1)
 	a = strings.Replace(a, "\"", "\\\"", -1)
-	return "p.InSet(\"" + a + "\")"
+	return "p_InSet(p, \"" + a + "\")"
 }
 
 func (g *GoGenerator2) CheckAnyChar() string {
-	return "p.AnyChar()"
+	return "p_AnyChar(p)"
 }
 
 func (g *GoGenerator2) CheckNext(a string) string {
 	if a[0] == '\'' {
-		return "p.NextRune(" + a + ")"
+		return "p_NextRune(p, " + a + ")"
 	}
 	a = a[1 : len(a)-1]
 	ret := ""
@@ -114,7 +115,7 @@ func (g *GoGenerator2) CheckNext(a string) string {
 		}
 		ret += fmt.Sprintf("'%s'", ch)
 	}
-	return "p.Next([]rune{" + ret + "})"
+	return "p_Next(p, []rune{" + ret + "})"
 }
 
 func (g *GoGenerator2) AssertNot(a string) string {
@@ -197,7 +198,7 @@ func (g *GoGenerator2) Begin() {
 	if g.AddDebugLogging {
 		impList = append(impList, "log")
 	}
-	impList = append(impList, "parser")
+	impList = append(impList, "parser", "strings")
 	if len(impList) > 0 {
 		imports += "\nimport (\n\t\"" + strings.Join(impList, "\"\n\t\"") + "\"\n)\n"
 	}
@@ -225,17 +226,82 @@ freely, subject to the following restrictions:
 */
 `
 	members := g.ParserVariables
-	members = append(members, "parser.Parser")
+	members = append(members, `ParserData struct {
+	Pos int
+	Data []rune
+}
+`, "IgnoreRange parser.Range", "Root parser.Node")
 	g.output += fmt.Sprintln("package " + strings.ToLower(g.Name) + "\n" + imports + "\ntype " + g.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
 	if g.AddDebugLogging {
 		g.output += "var fm parser.CodeFormatter\n\n"
 	}
-	g.output += `func p_Ignore(p *` + g.Name + `, add func(*` + g.Name + `) bool) bool {
-	return p.Ignore(func() bool { return add(p) })
+	g.output += `func (p *` + g.Name + `) RootNode() *parser.Node {
+	return p.Root.Children[0]
+}
+
+func (p *` + g.Name + `) SetData(data string) {
+	p.ParserData.Data = ([]rune)(data)
+	p.Reset()
+}
+
+func (p *` + g.Name + `) Reset() {
+	p.ParserData.Pos = 0
+	p.Root = parser.Node{}
+	p.IgnoreRange = parser.Range{}
+}
+
+func (p *` + g.Name + `) Data(start, end int) string {
+	l := len(p.ParserData.Data)
+	if l == 0 {
+		return ""
+	}
+	if start < 0 {
+		start = 0
+	}
+	if end > l {
+		end = l
+	}
+	if start > end {
+		return ""
+	}
+	return string(p.ParserData.Data[start:end])
+
+}
+
+func p_Ignore(p *` + g.Name + `, add func(*` + g.Name + `) bool) bool {
+	start := p.ParserData.Pos
+	ret := add(p)
+	if ret {
+		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
+			p.IgnoreRange.Start = start
+		}
+		p.IgnoreRange.End = p.ParserData.Pos
+	}
+	return ret
 }
 
 func p_addNode(p *` + g.Name + `, add func(*` + g.Name + `) bool, name string) bool {
-	return p.AddNode(func() bool { return add(p) }, name)
+	start := p.ParserData.Pos
+	shouldAdd := add(p)
+	end := p.ParserData.Pos
+	p.Root.P = p
+	// Remove any danglers
+	p.Root.Cleanup(p.ParserData.Pos, -1)
+
+	node := p.Root.Cleanup(start, p.ParserData.Pos)
+	node.Name = name
+	if shouldAdd {
+		node.P = p
+		node.Range.Clip(p.IgnoreRange)
+		c := make([]*parser.Node, len(node.Children))
+		copy(c, node.Children)
+		node.Children = c
+		p.Root.Append(node)
+	}
+	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
+		p.IgnoreRange = parser.Range{}
+	}
+	return shouldAdd
 }
 
 func p_Maybe(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
@@ -293,6 +359,60 @@ func p_Not(p *` + g.Name + `, exp func(*` + g.Name + `) bool) bool {
 	return !p_And(p, exp)
 }
 
+func p_AnyChar(p *` + g.Name + `) bool {
+	if p.ParserData.Pos >= len(p.ParserData.Data) {
+		return false
+	}
+	p.ParserData.Pos++
+	return true
+}
+
+func p_InRange(p *` + g.Name + `, c1, c2 rune) bool {
+	if p.ParserData.Pos >= len(p.ParserData.Data) {
+		return false
+	}
+	c := p.ParserData.Data[p.ParserData.Pos]
+	if c >= c1 && c <= c2 {
+		p.ParserData.Pos++
+		return true
+	}
+	return false
+}
+
+func p_InSet(p *` + g.Name + `, dataset string) bool {
+	if p.ParserData.Pos >= len(p.ParserData.Data) {
+		return false
+	}
+	c := p.ParserData.Data[p.ParserData.Pos]
+	if strings.ContainsRune(dataset, c) {
+		p.ParserData.Pos++
+		return true
+	}
+	return false
+}
+
+func p_NextRune(p *` + g.Name + `, n1 rune) bool {
+	if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != n1 {
+		return false
+	}
+	p.ParserData.Pos++
+	return true
+}
+
+func p_Next(p *` + g.Name + `, n1 []rune) bool {
+	s := p.ParserData.Pos
+	e := s + len(n1)
+	if e > len(p.ParserData.Data) {
+		return false
+	}
+	for i := 0; i < len(n1); i++ {
+		if n1[i] != p.ParserData.Data[s+i] {
+			return false
+		}
+	}
+	p.ParserData.Pos += len(n1)
+	return true
+}
 `
 }
 

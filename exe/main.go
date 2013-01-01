@@ -41,6 +41,14 @@ func main() {
 			gen := parser.GoGenerator2{
 				Name:            strings.ToTitle(name),
 				AddDebugLogging: false,
+				CustomActions: []parser.CustomAction{
+					{"Spacing", "p_Ignore(p, %s)"},
+					{"Quote", "p_Ignore(p, %s)"},
+					{"QuotedText", "p_Ignore(p, %s)"},
+					{"Value", "p_Ignore(p, %s)"},
+					{"Values", "p_Ignore(p, %s)"},
+					{"KeyValuePairs", "p_Ignore(p, %s)"},
+				},
 			}
 			if err := ioutil.WriteFile(filepath.Join("./"+name, name+".go"), []byte(parser.GenerateParser(p.RootNode(), &gen)), 0644); err != nil {
 				log.Fatalln(err)
@@ -63,6 +71,7 @@ func TestParser(t *testing.T) {
 			t.Fatalf("Didn't parse correctly\n")
 		} else {
 			root := p.RootNode()
+//			log.Println(root)
 			if root.Range.End != len(p.ParserData.Data) {
 				t.Fatalf("Parsing didn't finish: %v", root)
 			}
@@ -88,7 +97,7 @@ func BenchmarkParser(b *testing.B) {
 				log.Fatalln(err)
 			}
 			//			log.Println(filepath.Join(dir, "testmain.go"))
-			c := exec.Command("go", "test" /*, "-bench", "."*/)
+			c := exec.Command("go", "test", "-bench", ".")
 			c.Dir = name
 			data, _ := c.CombinedOutput()
 			log.Println(string(data))

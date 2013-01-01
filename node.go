@@ -30,6 +30,10 @@ type Range struct {
 	Start, End int
 }
 
+type DataSource interface {
+	Data(start, end int) string
+}
+
 func (r *Range) Clip(r2 Range) (clipped bool) {
 	if r.Start >= r2.Start && r.Start < r2.End {
 		clipped = true
@@ -49,7 +53,7 @@ type Node struct {
 	Range    Range
 	Name     string
 	Children []*Node
-	P        *Parser
+	P        DataSource
 }
 
 func (n *Node) format(cf *CodeFormatter) {
