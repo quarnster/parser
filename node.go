@@ -84,17 +84,31 @@ func (n *Node) Cleanup(pos, end int) *Node {
 	popped.Range = Range{pos, end}
 	back := len(n.Children)
 	popIdx := 0
+	popEnd := back
+	if end == 0 {
+		end = -1
+	}
+	if pos == 0 {
+		pos = -1
+	}
 
 	for i := back - 1; i >= 0; i-- {
 		node := n.Children[i]
-		if node.Range.End <= pos && pos != 0 {
+		if node.Range.End <= pos {
 			popIdx = i + 1
 			break
 		}
+		if node.Range.Start > end {
+			popEnd = i + 1
+		}
 	}
 
-	popped.Children = n.Children[popIdx:back]
-	n.Children = n.Children[:popIdx]
+	if popEnd != 0 {
+		popped.Children = n.Children[popIdx:popEnd]
+	}
+	if popIdx != back {
+		n.Children = n.Children[:popIdx]
+	}
 	return &popped
 }
 

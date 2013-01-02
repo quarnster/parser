@@ -25,8 +25,6 @@ start := p.ParserData.Pos
 ` + g.Call(data) + `
 end := p.ParserData.Pos
 p.Root.P = p
-// Remove any danglers
-p.Root.Cleanup(p.ParserData.Pos, -1)
 node := p.Root.Cleanup(start, p.ParserData.Pos)
 node.Name = "` + defName + `"
 if accept {
@@ -102,10 +100,11 @@ return res
 `)
 	} else {
 		if strings.HasPrefix(data, "accept") || data[0] == '{' {
-			indenter.Add(`accept := false
-` + data + `
-return accept
-`)
+			end := "return accept\n"
+			if data[len(data)-1] != '\n' {
+				end = "\n" + end
+			}
+			indenter.Add("accept := false\n" + data + end)
 		} else {
 			indenter.Add(g.Return(data) + "\n")
 		}
@@ -116,15 +115,6 @@ return accept
 	g.output += indenter.String()
 	g.currentFunctions = ""
 	g.currentFunctionsCount = 0
-}
-
-func (g *GoGenerator2) accept() string {
-	return g.Return("true")
-	//	return "accept = true"
-}
-func (g *GoGenerator2) reject() string {
-	return g.Return("false")
-	//	return "accept = false"
 }
 
 func (g *GoGenerator2) MakeParserCall(value string) string {
@@ -220,7 +210,7 @@ func (g *GoGenerator2) CheckNext(a string) string {
 	if e > len(p.ParserData.Data) {
 		accept = false
 	} else {
-		if  %s {
+		if %s {
 			accept = false
 		}
 	}
@@ -265,7 +255,6 @@ func (g *GoGenerator2) OneOrMore(a string) string {
 ` + g.Call(a) + `
 if !accept {
 	p.ParserData.Pos = save
-	` + g.Return("false") + `
 } else {
 	for accept {
 `)
@@ -430,10 +419,10 @@ freely, subject to the following restrictions:
 `
 	members := g.ParserVariables
 	members = append(members, `ParserData struct {
-	Pos int
-	Data []rune
-}
-`, "IgnoreRange parser.Range", "Root parser.Node")
+		Pos  int
+		Data []rune
+	}
+`, "IgnoreRange parser.Range", "Root        parser.Node")
 	g.output += fmt.Sprintln("package " + strings.ToLower(g.Name) + "\n" + imports + "\ntype " + g.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
 	if g.AddDebugLogging {
 		g.output += "var fm parser.CodeFormatter\n\n"
@@ -468,7 +457,6 @@ func (p *` + g.Name + `) Data(start, end int) string {
 		return ""
 	}
 	return string(p.ParserData.Data[start:end])
-
 }
 `
 }

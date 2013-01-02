@@ -66,7 +66,6 @@ func (p *Peg) Data(start, end int) string {
 		return ""
 	}
 	return string(p.ParserData.Data[start:end])
-
 }
 func (p *Peg) Parse() bool {
 	return p_Grammar(p)
@@ -85,7 +84,6 @@ func p_Grammar(p *Peg) bool {
 				accept = p_Definition(p)
 				if !accept {
 					p.ParserData.Pos = save
-					return false
 				} else {
 					for accept {
 						accept = p_Definition(p)
@@ -106,8 +104,6 @@ func p_Grammar(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Grammar"
 	if accept {
@@ -146,8 +142,6 @@ func p_Definition(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Definition"
 	if accept {
@@ -211,8 +205,6 @@ func p_Expression(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Expression"
 	if accept {
@@ -243,8 +235,6 @@ func p_Sequence(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Sequence"
 	if accept {
@@ -292,8 +282,6 @@ func p_Prefix(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Prefix"
 	if accept {
@@ -344,8 +332,6 @@ func p_Suffix(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Suffix"
 	if accept {
@@ -421,8 +407,6 @@ func p_Primary(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Primary"
 	if accept {
@@ -467,8 +451,6 @@ func p_Identifier(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Identifier"
 	if accept {
@@ -757,8 +739,6 @@ func p_Literal(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Literal"
 	if accept {
@@ -854,8 +834,6 @@ func p_Class(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Class"
 	if accept {
@@ -910,8 +888,6 @@ func p_Range(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Range"
 	if accept {
@@ -1096,8 +1072,6 @@ func p_Char(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "Char"
 	if accept {
@@ -1151,7 +1125,6 @@ func p_LEFTARROW(p *Peg) bool {
 		}
 		p.IgnoreRange.End = p.ParserData.Pos
 	}
-
 	return accept
 }
 
@@ -1183,7 +1156,6 @@ func p_SLASH(p *Peg) bool {
 		}
 		p.IgnoreRange.End = p.ParserData.Pos
 	}
-
 	return accept
 }
 
@@ -1211,8 +1183,6 @@ func p_AND(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "AND"
 	if accept {
@@ -1253,8 +1223,6 @@ func p_NOT(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "NOT"
 	if accept {
@@ -1295,8 +1263,6 @@ func p_QUESTION(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "QUESTION"
 	if accept {
@@ -1337,8 +1303,6 @@ func p_STAR(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "STAR"
 	if accept {
@@ -1379,8 +1343,6 @@ func p_PLUS(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "PLUS"
 	if accept {
@@ -1425,7 +1387,6 @@ func p_OPEN(p *Peg) bool {
 		}
 		p.IgnoreRange.End = p.ParserData.Pos
 	}
-
 	return accept
 }
 
@@ -1457,7 +1418,6 @@ func p_CLOSE(p *Peg) bool {
 		}
 		p.IgnoreRange.End = p.ParserData.Pos
 	}
-
 	return accept
 }
 
@@ -1485,8 +1445,6 @@ func p_DOT(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	// Remove any danglers
-	p.Root.Cleanup(p.ParserData.Pos, -1)
 	node := p.Root.Cleanup(start, p.ParserData.Pos)
 	node.Name = "DOT"
 	if accept {
@@ -1543,7 +1501,6 @@ func p_Spacing(p *Peg) bool {
 		}
 		p.IgnoreRange.End = p.ParserData.Pos
 	}
-
 	return accept
 }
 
@@ -1620,7 +1577,6 @@ func p_Comment(p *Peg) bool {
 		}
 		p.IgnoreRange.End = p.ParserData.Pos
 	}
-
 	return accept
 }
 
@@ -1660,7 +1616,6 @@ func p_Space(p *Peg) bool {
 		}
 		p.IgnoreRange.End = p.ParserData.Pos
 	}
-
 	return accept
 }
 
@@ -1714,7 +1669,6 @@ func p_EndOfLine(p *Peg) bool {
 		}
 		p.IgnoreRange.End = p.ParserData.Pos
 	}
-
 	return accept
 }
 
@@ -1737,6 +1691,5 @@ func p_EndOfFile(p *Peg) bool {
 		}
 		p.IgnoreRange.End = p.ParserData.Pos
 	}
-
 	return accept
 }
