@@ -64,15 +64,7 @@ func (i *CodeFormatter) String() string {
 }
 
 type Group interface {
-	Add(value string)
-}
-
-type baseGroup struct {
-	cf CodeFormatter
-}
-
-func (b *baseGroup) Add(value string) {
-	b.cf.Add(value + ",\n")
+	Add(value, name string)
 }
 
 type Generator interface {
@@ -120,7 +112,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 		if len(exps) > 1 {
 			g := gen.BeginGroup(false)
 			for _, e := range exps {
-				g.Add(e)
+				g.Add(e, "")
 			}
 			return gen.EndGroup(g)
 		} else {
@@ -138,7 +130,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 		} else {
 			g := gen.BeginGroup(false)
 			for _, child := range node.Children {
-				g.Add(helper(gen, child))
+				g.Add(helper(gen, child), child.Name)
 			}
 			return gen.EndGroup(g)
 		}
@@ -149,7 +141,7 @@ func helper(gen Generator, node *Node) (retstring string) {
 		} else {
 			g := gen.BeginGroup(true)
 			for _, child := range node.Children {
-				g.Add(helper(gen, child))
+				g.Add(helper(gen, child), child.Name)
 			}
 			return gen.EndGroup(g)
 		}

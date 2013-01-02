@@ -66,7 +66,6 @@ func TestParser(t *testing.T) {
 						{"Spacing", ignore},
 						{"Space", ignore},
 						{"EndOfLine", ignore},
-						{"EndOfFile", ignore},
 						{"IdentStart", justcall},
 						{"IdentCont", justcall},
 						{"SLASH", ignore},

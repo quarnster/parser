@@ -79,6 +79,23 @@ func (n *Node) String() string {
 	return cf.String()
 }
 
+func (n *Node) Discard(pos int) {
+	if pos == 0 {
+		return
+	}
+	back := len(n.Children)
+	popIdx := 0
+	for i := back - 1; i >= 0; i-- {
+		node := n.Children[i]
+		if node.Range.End <= pos {
+			popIdx = i + 1
+			break
+		}
+	}
+	if popIdx != back {
+		n.Children = n.Children[:popIdx]
+	}
+}
 func (n *Node) Cleanup(pos, end int) *Node {
 	var popped Node
 	popped.Range = Range{pos, end}

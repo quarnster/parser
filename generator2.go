@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"container/list"
 	"fmt"
 	"regexp"
 	"strings"
@@ -25,15 +26,17 @@ start := p.ParserData.Pos
 ` + g.Call(data) + `
 end := p.ParserData.Pos
 p.Root.P = p
-node := p.Root.Cleanup(start, p.ParserData.Pos)
-node.Name = "` + defName + `"
 if accept {
+	node := p.Root.Cleanup(start, p.ParserData.Pos)
+	node.Name = "` + defName + `"
 	node.P = p
 	node.Range.Clip(p.IgnoreRange)
 	c := make([]*parser.Node, len(node.Children))
 	copy(c, node.Children)
 	node.Children = c
 	p.Root.Append(node)
+} else {
+	p.Root.Discard(start)
 }
 if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 	p.IgnoreRange = parser.Range{}
@@ -44,7 +47,7 @@ func (g *GoGenerator2) Ignore(data string) string {
 	return `accept = true
 start := p.ParserData.Pos
 ` + g.Call(data) + `
-if accept {
+if accept && start != p.ParserData.Pos {
 	if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 		p.IgnoreRange.Start = start
 	}
@@ -81,6 +84,11 @@ func (g *GoGenerator2) MakeParserFunction(node *Node) {
 		data = g.AddNode(data, defName)
 	}
 	if g.AddDebugLogging {
+		if strings.HasPrefix(data, "accept") || data[0] == '{' {
+			data = "accept := false\n" + data
+		} else {
+			data = "accept := " + data
+		}
 		indenter.Add(`var (
 	pos = p.ParserData.Pos
 	l   = len(p.ParserData.Data)
@@ -88,15 +96,18 @@ func (g *GoGenerator2) MakeParserFunction(node *Node) {
 
 log.Println(fm.Level() + "` + defName + ` entered")
 fm.Inc()
-res := ` + data + `
+` + data + `
 fm.Dec()
-if !res && p.ParserData.Pos != pos {
-	log.Fatalln("` + defName + `", res, ", ", pos, ", ", p.ParserData.Pos)
+if !accept && p.ParserData.Pos != pos {
+	log.Fatalln("` + defName + `", accept, ", ", pos, ", ", p.ParserData.Pos)
 }
 p2 := p.ParserData.Pos
-data := string(p.ParserData.Data[pos:p2])
-log.Println(fm.Level()+"` + defName + ` returned: ", res, ", ", pos, ", ", p.ParserData.Pos, ", ", l, string(data))
-return res
+data := ""
+if p2 < len(p.ParserData.Data) {
+	data = string(p.ParserData.Data[pos:p2])
+}
+log.Println(fm.Level()+"` + defName + ` returned: ", accept, ", ", pos, ", ", p.ParserData.Pos, ", ", l, string(data))
+return accept
 `)
 	} else {
 		if strings.HasPrefix(data, "accept") || data[0] == '{' {
@@ -169,9 +180,10 @@ func (g *GoGenerator2) CheckInSet(a string) string {
 func (g *GoGenerator2) CheckAnyChar() string {
 	return `if p.ParserData.Pos >= len(p.ParserData.Data) {
 	accept = false
-}
-p.ParserData.Pos++
-accept = true`
+} else {
+	p.ParserData.Pos++
+	accept = true
+}`
 }
 
 func (g *GoGenerator2) CheckNext(a string) string {
@@ -228,7 +240,9 @@ accept = !accept`
 }
 
 func (g *GoGenerator2) AssertAnd(a string) string {
-	return "p_And(p, " + g.Call(a) + ")"
+	return `s := p.ParserData.Pos
+` + g.Call(a) + `
+p.ParserData.Pos = s`
 }
 
 func (g *GoGenerator2) ZeroOrMore(a string) string {
@@ -279,14 +293,16 @@ func (g *GoGenerator2) Maybe(a string) string {
 type needAllGroup struct {
 	cf    CodeFormatter
 	g     Generator
+	stack list.List
 	label string
 }
 
-func (b *needAllGroup) Add(value string) {
+func (b *needAllGroup) Add(value, name string) {
 	b.cf.Add(b.g.Call(value) + `
 if accept {
 `)
 	b.cf.Inc()
+	b.stack.PushBack(name)
 }
 
 type needOneGroup struct {
@@ -294,7 +310,7 @@ type needOneGroup struct {
 	g  Generator
 }
 
-func (b *needOneGroup) Add(value string) {
+func (b *needOneGroup) Add(value, name string) {
 	b.cf.Add(b.g.Call(value) + "\nif !accept {\n")
 	b.cf.Inc()
 }
@@ -315,13 +331,17 @@ func (g *GoGenerator2) BeginGroup(requireAll bool) Group {
 	r.cf.Inc()
 	return &r
 }
-
+func (g *GoGenerator2) UpdateError(msg string) string {
+	return "if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } "
+	// return "{\n\te := fmt.Sprintf(`Expected " + msg + " near %d`, p.ParserData.Pos)\n\tif len(p.LastError) != 0 {\n\t\te = e + \"\\n\" + p.LastError\n\t}\n\tp.LastError = e\n}"
+}
 func (g *GoGenerator2) EndGroup(gr Group) string {
 	switch t := gr.(type) {
 	case *needAllGroup:
-		for len(t.cf.Level()) > 1 {
+
+		for n := t.stack.Back(); len(t.cf.Level()) > 1; n = n.Prev() {
 			t.cf.Dec()
-			t.cf.Add("}\n")
+			t.cf.Add("} else " + g.UpdateError(n.Value.(string)) + "\n")
 		}
 		t.cf.Add("if !accept {\n\tp.ParserData.Pos = save\n}\n")
 		t.cf.Dec()
@@ -422,7 +442,9 @@ freely, subject to the following restrictions:
 		Pos  int
 		Data []rune
 	}
-`, "IgnoreRange parser.Range", "Root        parser.Node")
+`, "IgnoreRange parser.Range",
+		"Root        parser.Node",
+		"LastError   int")
 	g.output += fmt.Sprintln("package " + strings.ToLower(g.Name) + "\n" + imports + "\ntype " + g.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
 	if g.AddDebugLogging {
 		g.output += "var fm parser.CodeFormatter\n\n"
@@ -440,6 +462,7 @@ func (p *` + g.Name + `) Reset() {
 	p.ParserData.Pos = 0
 	p.Root = parser.Node{}
 	p.IgnoreRange = parser.Range{}
+	p.LastError = 0
 }
 
 func (p *` + g.Name + `) Data(start, end int) string {
@@ -458,6 +481,33 @@ func (p *` + g.Name + `) Data(start, end int) string {
 	}
 	return string(p.ParserData.Data[start:end])
 }
+
+func (p *` + g.Name + `) Error() parser.Error {
+	errstr := ""
+
+	line := 1
+	column := 1
+	for _, r := range p.ParserData.Data[:p.LastError] {
+		column ++
+		if r == '\n' {
+			line++
+			column = 1
+		}
+	}
+
+	if p.LastError == len(p.ParserData.Data) {
+		errstr = "Unexpected EOF"
+	} else {
+		r := p.ParserData.Data[p.LastError]
+		if r == '\r' || r == '\n' {
+			errstr = "Unexpected new line"
+		} else {
+			errstr = "Unexpected " + string(r)
+		}
+	}
+	return parser.NewError(line, column, errstr)
+}
+
 `
 }
 

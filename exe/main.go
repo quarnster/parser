@@ -42,7 +42,6 @@ func main() {
 			ignore := func(g parser.Generator, in string) string {
 				return gen.Ignore(in)
 			}
-
 			gen = parser.GoGenerator2{
 				Name:            strings.ToTitle(name),
 				AddDebugLogging: false,
@@ -65,10 +64,10 @@ import (
 	"log"
 	"testing"
 )
-
+const testname = "`+abs+`"
 func TestParser(t *testing.T) {
 	var p `+gen.Name+`
-	if data, err := ioutil.ReadFile("`+abs+`"); err != nil {
+	if data, err := ioutil.ReadFile(testname); err != nil {
 		log.Fatalf("%s", err)
 	} else {
 		p.SetData(string(data))
@@ -86,7 +85,7 @@ func TestParser(t *testing.T) {
 
 func BenchmarkParser(b *testing.B) {
 	var p `+gen.Name+`
-	if data, err := ioutil.ReadFile("`+abs+`"); err != nil {
+	if data, err := ioutil.ReadFile(testname); err != nil {
 		b.Fatalf("%s", err)
 	} else {
 		p.SetData(string(data))
@@ -102,7 +101,7 @@ func BenchmarkParser(b *testing.B) {
 				log.Fatalln(err)
 			}
 			//			log.Println(filepath.Join(dir, "testmain.go"))
-			c := exec.Command("go", "test", "-bench", ".")
+			c := exec.Command("go", "test", "-bench", "Parser")
 			c.Dir = name
 			data, _ := c.CombinedOutput()
 			log.Println(string(data))

@@ -34,6 +34,7 @@ type Peg struct {
 
 	IgnoreRange parser.Range
 	Root        parser.Node
+	LastError   int
 }
 
 func (p *Peg) RootNode() *parser.Node {
@@ -49,6 +50,7 @@ func (p *Peg) Reset() {
 	p.ParserData.Pos = 0
 	p.Root = parser.Node{}
 	p.IgnoreRange = parser.Range{}
+	p.LastError = 0
 }
 
 func (p *Peg) Data(start, end int) string {
@@ -67,6 +69,33 @@ func (p *Peg) Data(start, end int) string {
 	}
 	return string(p.ParserData.Data[start:end])
 }
+
+func (p *Peg) Error() parser.Error {
+	errstr := ""
+
+	line := 1
+	column := 1
+	for _, r := range p.ParserData.Data[:p.LastError] {
+		column ++
+		if r == '\n' {
+			line++
+			column = 1
+		}
+	}
+
+	if p.LastError == len(p.ParserData.Data) {
+		errstr = "Unexpected EOF"
+	} else {
+		r := p.ParserData.Data[p.LastError]
+		if r == '\r' || r == '\n' {
+			errstr = "Unexpected new line"
+		} else {
+			errstr = "Unexpected " + string(r)
+		}
+	}
+	return parser.NewError(line, column, errstr)
+}
+
 func (p *Peg) Parse() bool {
 	return p_Grammar(p)
 }
@@ -95,24 +124,26 @@ func p_Grammar(p *Peg) bool {
 				accept = p_EndOfFile(p)
 				accept = true
 				if accept {
-				}
-			}
-		}
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Grammar"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Grammar"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -133,24 +164,26 @@ func p_Definition(p *Peg) bool {
 			if accept {
 				accept = p_Expression(p)
 				if accept {
-				}
-			}
-		}
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Definition"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Definition"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -174,8 +207,8 @@ func p_Expression(p *Peg) bool {
 					if accept {
 						accept = p_Sequence(p)
 						if accept {
-						}
-					}
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 					if !accept {
 						p.ParserData.Pos = save
 					}
@@ -187,8 +220,8 @@ func p_Expression(p *Peg) bool {
 						if accept {
 							accept = p_Sequence(p)
 							if accept {
-							}
-						}
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 						if !accept {
 							p.ParserData.Pos = save
 						}
@@ -197,23 +230,25 @@ func p_Expression(p *Peg) bool {
 				accept = true
 			}
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Expression"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Expression"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -235,15 +270,17 @@ func p_Sequence(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Sequence"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Sequence"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -274,23 +311,25 @@ func p_Prefix(p *Peg) bool {
 		if accept {
 			accept = p_Suffix(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Prefix"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Prefix"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -324,23 +363,25 @@ func p_Suffix(p *Peg) bool {
 			}
 			accept = true
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Suffix"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Suffix"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -367,8 +408,8 @@ func p_Primary(p *Peg) bool {
 				p.ParserData.Pos = s
 				accept = !accept
 				if accept {
-				}
-			}
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 			if !accept {
 				p.ParserData.Pos = save
 			}
@@ -382,9 +423,9 @@ func p_Primary(p *Peg) bool {
 					if accept {
 						accept = p_CLOSE(p)
 						if accept {
-						}
-					}
-				}
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 				if !accept {
 					p.ParserData.Pos = save
 				}
@@ -407,15 +448,17 @@ func p_Primary(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Primary"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Primary"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -442,24 +485,26 @@ func p_Identifier(p *Peg) bool {
 			if accept {
 				accept = p_Spacing(p)
 				if accept {
-				}
-			}
-		}
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Identifier"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Identifier"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -585,8 +630,8 @@ func p_Literal(p *Peg) bool {
 						if accept {
 							accept = p_Char(p)
 							if accept {
-							}
-						}
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 						if !accept {
 							p.ParserData.Pos = save
 						}
@@ -610,8 +655,8 @@ func p_Literal(p *Peg) bool {
 							if accept {
 								accept = p_Char(p)
 								if accept {
-								}
-							}
+								} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 							if !accept {
 								p.ParserData.Pos = save
 							}
@@ -633,10 +678,10 @@ func p_Literal(p *Peg) bool {
 					if accept {
 						accept = p_Spacing(p)
 						if accept {
-						}
-					}
-				}
-			}
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 			if !accept {
 				p.ParserData.Pos = save
 			}
@@ -674,8 +719,8 @@ func p_Literal(p *Peg) bool {
 							if accept {
 								accept = p_Char(p)
 								if accept {
-								}
-							}
+								} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 							if !accept {
 								p.ParserData.Pos = save
 							}
@@ -699,8 +744,8 @@ func p_Literal(p *Peg) bool {
 								if accept {
 									accept = p_Char(p)
 									if accept {
-									}
-								}
+									} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+								} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 								if !accept {
 									p.ParserData.Pos = save
 								}
@@ -722,10 +767,10 @@ func p_Literal(p *Peg) bool {
 						if accept {
 							accept = p_Spacing(p)
 							if accept {
-							}
-						}
-					}
-				}
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 				if !accept {
 					p.ParserData.Pos = save
 				}
@@ -739,15 +784,17 @@ func p_Literal(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Literal"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Literal"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -784,8 +831,8 @@ func p_Class(p *Peg) bool {
 					if accept {
 						accept = p_Range(p)
 						if accept {
-						}
-					}
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 					if !accept {
 						p.ParserData.Pos = save
 					}
@@ -805,8 +852,8 @@ func p_Class(p *Peg) bool {
 						if accept {
 							accept = p_Range(p)
 							if accept {
-							}
-						}
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 						if !accept {
 							p.ParserData.Pos = save
 						}
@@ -824,25 +871,27 @@ func p_Class(p *Peg) bool {
 				if accept {
 					accept = p_Spacing(p)
 					if accept {
-					}
-				}
-			}
-		}
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Class"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Class"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -870,9 +919,9 @@ func p_Range(p *Peg) bool {
 				if accept {
 					accept = p_Char(p)
 					if accept {
-					}
-				}
-			}
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 			if !accept {
 				p.ParserData.Pos = save
 			}
@@ -888,15 +937,17 @@ func p_Range(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Range"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Range"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -934,8 +985,8 @@ func p_Char(p *Peg) bool {
 					}
 				}
 				if accept {
-				}
-			}
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 			if !accept {
 				p.ParserData.Pos = save
 			}
@@ -986,10 +1037,10 @@ func p_Char(p *Peg) bool {
 								}
 							}
 							if accept {
-							}
-						}
-					}
-				}
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 				if !accept {
 					p.ParserData.Pos = save
 				}
@@ -1029,9 +1080,9 @@ func p_Char(p *Peg) bool {
 							}
 							accept = true
 							if accept {
-							}
-						}
-					}
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 					if !accept {
 						p.ParserData.Pos = save
 					}
@@ -1051,12 +1102,13 @@ func p_Char(p *Peg) bool {
 						if accept {
 							if p.ParserData.Pos >= len(p.ParserData.Data) {
 								accept = false
+							} else {
+								p.ParserData.Pos++
+								accept = true
 							}
-							p.ParserData.Pos++
-							accept = true
 							if accept {
-							}
-						}
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 						if !accept {
 							p.ParserData.Pos = save
 						}
@@ -1072,15 +1124,17 @@ func p_Char(p *Peg) bool {
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "Char"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "Char"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -1113,13 +1167,13 @@ func p_LEFTARROW(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
-	if accept {
+	if accept && start != p.ParserData.Pos {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
@@ -1144,13 +1198,13 @@ func p_SLASH(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
-	if accept {
+	if accept && start != p.ParserData.Pos {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
@@ -1175,23 +1229,25 @@ func p_AND(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "AND"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "AND"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -1215,23 +1271,25 @@ func p_NOT(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "NOT"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "NOT"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -1255,23 +1313,25 @@ func p_QUESTION(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "QUESTION"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "QUESTION"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -1295,23 +1355,25 @@ func p_STAR(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "STAR"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "STAR"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -1335,23 +1397,25 @@ func p_PLUS(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "PLUS"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "PLUS"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -1375,13 +1439,13 @@ func p_OPEN(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
-	if accept {
+	if accept && start != p.ParserData.Pos {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
@@ -1406,13 +1470,13 @@ func p_CLOSE(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
-	if accept {
+	if accept && start != p.ParserData.Pos {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
@@ -1437,23 +1501,25 @@ func p_DOT(p *Peg) bool {
 		if accept {
 			accept = p_Spacing(p)
 			if accept {
-			}
-		}
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
 	end := p.ParserData.Pos
 	p.Root.P = p
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
-	node.Name = "DOT"
 	if accept {
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "DOT"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		c := make([]*parser.Node, len(node.Children))
 		copy(c, node.Children)
 		node.Children = c
 		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
 	}
 	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 		p.IgnoreRange = parser.Range{}
@@ -1495,7 +1561,7 @@ func p_Spacing(p *Peg) bool {
 		}
 		accept = true
 	}
-	if accept {
+	if accept && start != p.ParserData.Pos {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
@@ -1528,12 +1594,13 @@ func p_Comment(p *Peg) bool {
 					if accept {
 						if p.ParserData.Pos >= len(p.ParserData.Data) {
 							accept = false
+						} else {
+							p.ParserData.Pos++
+							accept = true
 						}
-						p.ParserData.Pos++
-						accept = true
 						if accept {
-						}
-					}
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+					} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 					if !accept {
 						p.ParserData.Pos = save
 					}
@@ -1548,12 +1615,13 @@ func p_Comment(p *Peg) bool {
 						if accept {
 							if p.ParserData.Pos >= len(p.ParserData.Data) {
 								accept = false
+							} else {
+								p.ParserData.Pos++
+								accept = true
 							}
-							p.ParserData.Pos++
-							accept = true
 							if accept {
-							}
-						}
+							} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+						} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 						if !accept {
 							p.ParserData.Pos = save
 						}
@@ -1564,14 +1632,14 @@ func p_Comment(p *Peg) bool {
 			if accept {
 				accept = p_EndOfLine(p)
 				if accept {
-				}
-			}
-		}
+				} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+			} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
+		} else if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } 
 		if !accept {
 			p.ParserData.Pos = save
 		}
 	}
-	if accept {
+	if accept && start != p.ParserData.Pos {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
@@ -1610,7 +1678,7 @@ func p_Space(p *Peg) bool {
 			p.ParserData.Pos = save
 		}
 	}
-	if accept {
+	if accept && start != p.ParserData.Pos {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
@@ -1663,7 +1731,7 @@ func p_EndOfLine(p *Peg) bool {
 			p.ParserData.Pos = save
 		}
 	}
-	if accept {
+	if accept && start != p.ParserData.Pos {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
@@ -1680,16 +1748,28 @@ func p_EndOfFile(p *Peg) bool {
 	s := p.ParserData.Pos
 	if p.ParserData.Pos >= len(p.ParserData.Data) {
 		accept = false
+	} else {
+		p.ParserData.Pos++
+		accept = true
 	}
-	p.ParserData.Pos++
-	accept = true
 	p.ParserData.Pos = s
 	accept = !accept
+	end := p.ParserData.Pos
+	p.Root.P = p
 	if accept {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
-		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		node := p.Root.Cleanup(start, p.ParserData.Pos)
+		node.Name = "EndOfFile"
+		node.P = p
+		node.Range.Clip(p.IgnoreRange)
+		c := make([]*parser.Node, len(node.Children))
+		copy(c, node.Children)
+		node.Children = c
+		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
+	}
+	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
+		p.IgnoreRange = parser.Range{}
 	}
 	return accept
 }

@@ -22,8 +22,36 @@ freely, subject to the following restrictions:
 */
 package parser
 
+import (
+	"fmt"
+)
+
 type Parser interface {
 	SetData(data string)
 	Reset()
 	RootNode() *Node
+	Error() Error
 }
+
+type Error interface {
+	Line() int
+	Column() int
+	Description() string
+	String() string
+}
+
+type BasicError struct {
+	line        int
+	column      int
+	description string
+}
+
+func NewError(line, column int, description string) Error {
+	return &BasicError{line, column, description}
+}
+func (be *BasicError) String() string {
+	return fmt.Sprintf("%d,%d: %s", be.line, be.column, be.description)
+}
+func (be *BasicError) Line() int           { return be.line }
+func (be *BasicError) Column() int         { return be.column }
+func (be *BasicError) Description() string { return be.description }
