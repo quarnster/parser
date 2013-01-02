@@ -1,10 +1,9 @@
-IniFile     <- (Comment / Section)+
-Comment     <- ';' (!endOfLine .)* endOfLine
-Section     <- open Name close endOfLine KeyValuePair*
-Name <- (!close .)+
-open <- '['
-close <- ']'
-KeyValuePair <- Key '=' Value endOfLine
-Key <- !'[' (!'=' .)+
-Value <- (!endOfLine .)*
-endOfLine   <- "\r\n" / '\n' / '\r'
+IniFile        <-    (Comment / Section)+ EndOfFile
+Comment        <-    ';' (!EndOfLine .)* EndOfLine
+Section        <-    '[' Name ']' EndOfLine KeyValuePair*
+Name           <-    (!']' .)+
+KeyValuePair   <-    Key '=' Value EndOfLine
+Key            <-    !'[' (!'=' .)+
+Value          <-    (!EndOfLine .)*
+EndOfLine      <-    "\r\n" / '\n' / '\r'
+EndOfFile      <-    !.

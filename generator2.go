@@ -210,6 +210,9 @@ func (g *GoGenerator2) CheckNext(a string) string {
 			i++
 			c2 += string(a[i])
 		}
+		if c2 == "\\\"" {
+			c2 = "\""
+		}
 		if c2 == "'" {
 			c2 = "\\'"
 		}
