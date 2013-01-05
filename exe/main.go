@@ -27,7 +27,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -45,7 +44,7 @@ func main() {
 		bench     = false
 		debug     = false
 		dumptree  = false
-		notest    = true
+		notest    = false
 		ignore    = ""
 		generator = "go"
 	)
@@ -125,7 +124,7 @@ func main() {
 				c := exec.Command(cmd[0], cmd[1:]...)
 				c.Dir = root
 				data, _ := c.CombinedOutput()
-				fmt.Println(string(data))
+				log.Println(string(data))
 			}
 		}
 	}

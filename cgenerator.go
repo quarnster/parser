@@ -718,5 +718,5 @@ func (g *CGenerator) Finish() error {
 }
 
 func (g *CGenerator) TestCommand() []string {
-	return []string{"cc", "-I.", "-O3", strings.ToLower(g.name) + ".c", "-ltcmalloc", "-o/tmp/a.out"}
+	return []string{"bash", "-c", "cc -I. -O3 ./" + strings.ToLower(g.name) + ".c -ltcmalloc -o/tmp/a.out && /tmp/a.out"}
 }

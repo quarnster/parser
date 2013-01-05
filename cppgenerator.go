@@ -436,5 +436,5 @@ func (g *CPPGenerator) Finish() error {
 }
 
 func (g *CPPGenerator) TestCommand() []string {
-	return []string{"c++", "-I.", "-O3", strings.ToLower(g.name) + ".cpp", "-ltcmalloc", "-o/tmp/a.out"}
+	return []string{"bash", "-c", "c++ -I. -O3 " + strings.ToLower(g.name) + ".cpp -ltcmalloc -o/tmp/a.out && /tmp/a.out"}
 }
