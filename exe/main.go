@@ -93,9 +93,10 @@ func main() {
 				gen = &parser.CGenerator{}
 			case "cpp":
 				gen = &parser.CPPGenerator{}
+			case "java":
+				gen = &parser.JavaGenerator{}
 			}
 
-			gen.SetName(strings.ToTitle(name))
 			//			gen.AddDebugLogging = debug
 			root := name
 			if generator != "go" {
@@ -104,6 +105,7 @@ func main() {
 			root += "/"
 			gen.SetCustomActions(customActions)
 			s := parser.GeneratorSettings{
+				Name:     strings.ToTitle(name),
 				Testname: testfile,
 				Debug:    dumptree,
 				Bench:    bench,

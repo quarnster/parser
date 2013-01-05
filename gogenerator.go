@@ -37,7 +37,6 @@ type GoGenerator struct {
 	s                     GeneratorSettings
 	output                string
 	AddDebugLogging       bool
-	name                  string
 	CustomActions         []CustomAction
 	ParserVariables       []string
 	Imports               []string
@@ -49,20 +48,10 @@ type GoGenerator struct {
 	debug, bench          bool
 }
 
-func (g *GoGenerator) Name() string {
-	return g.name
-}
-func (g *GoGenerator) SetName(name string) {
-	g.name = name
-}
-
 func (g *GoGenerator) SetCustomActions(actions []CustomAction) {
 	g.CustomActions = actions
 }
 
-func (g *GoGenerator) FileExtension() string {
-	return ".go"
-}
 func (g *GoGenerator) AddNode(data, defName string) string {
 	return `accept = true
 start := p.ParserData.Pos
@@ -107,11 +96,11 @@ func (g *GoGenerator) MakeParserFunction(node *Node) error {
 
 	if !g.havefunctions {
 		g.havefunctions = true
-		g.output += "func (p *" + g.name + ") realParse() bool {\n\treturn p_" + defName + "(p)\n}\n"
+		g.output += "func (p *" + g.s.Name + ") realParse() bool {\n\treturn p_" + defName + "(p)\n}\n"
 	}
 
 	indenter := CodeFormatter{}
-	indenter.Add("func p_" + defName + "(p *" + g.name + ") bool {\n")
+	indenter.Add("func p_" + defName + "(p *" + g.s.Name + ") bool {\n")
 	indenter.Inc()
 	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
 
@@ -420,10 +409,10 @@ func (g *GoGenerator) MakeFunction(value string) string {
 	if inlinere.MatchString(value) {
 		return inlinere.FindStringSubmatch(value)[1]
 	} else if inlinere2.MatchString(value) {
-		return "func(p *" + g.name + ") bool { " + value + " }"
+		return "func(p *" + g.s.Name + ") bool { " + value + " }"
 	}
 	f := CodeFormatter{}
-	f.Add("func(p *" + g.name + ") bool {\n")
+	f.Add("func(p *" + g.s.Name + ") bool {\n")
 	f.Inc()
 	f.Add("accept := true\n" + value + "\n" + g.Return("accept") + "\n")
 	f.Dec()
@@ -499,20 +488,20 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `, "IgnoreRange Range",
 		"Root        Node",
 		"LastError   int")
-	g.output += fmt.Sprintln("package " + strings.ToLower(g.name) + imports + "\ntype " + g.name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
+	g.output += fmt.Sprintln("package " + strings.ToLower(g.s.Name) + imports + "\ntype " + g.s.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
 
 	if g.AddDebugLogging {
 		g.output += "var fm CodeFormatter\n\n"
 	}
-	g.output += `func (p *` + g.name + `) RootNode() *Node {
+	g.output += `func (p *` + g.s.Name + `) RootNode() *Node {
 	return &p.Root
 }
 
-func (p *` + g.name + `) Parse(data string) bool {
+func (p *` + g.s.Name + `) Parse(data string) bool {
 	p.ParserData.Data = ([]rune)(data)
 
 	p.ParserData.Pos = 0
-	p.Root = Node{Name: "` + g.name + `"}
+	p.Root = Node{Name: "` + g.s.Name + `"}
 	p.IgnoreRange = Range{}
 	p.LastError = 0
 	ret := p.realParse()
@@ -522,7 +511,7 @@ func (p *` + g.name + `) Parse(data string) bool {
 	return ret
 }
 
-func (p *` + g.name + `) Data(start, end int) string {
+func (p *` + g.s.Name + `) Data(start, end int) string {
 	l := len(p.ParserData.Data)
 	if l == 0 {
 		return ""
@@ -539,7 +528,7 @@ func (p *` + g.name + `) Data(start, end int) string {
 	return string(p.ParserData.Data[start:end])
 }
 
-func (p *` + g.name + `) Error() Error {
+func (p *` + g.s.Name + `) Error() Error {
 	errstr := ""
 
 	line := 1
@@ -575,7 +564,7 @@ func (g *GoGenerator) Finish() error {
 		ret = ret[:len(ret)-1]
 	}
 	g.output = ""
-	ln := strings.ToLower(g.name)
+	ln := strings.ToLower(g.s.Name)
 	if err := g.s.WriteFile(ln+".go", ret); err != nil {
 		return err
 	}
@@ -586,7 +575,7 @@ func (g *GoGenerator) Finish() error {
 		dumptree_s = "t.Log(\"\\n\"+root.String())"
 	}
 	abs, _ := filepath.Abs(g.s.Testname)
-	test := `package ` + strings.ToLower(g.Name()) + `
+	test := `package ` + strings.ToLower(g.s.Name) + `
 		import (
 			"io/ioutil"
 			"log"
@@ -594,7 +583,7 @@ func (g *GoGenerator) Finish() error {
 		)
 const testname = "` + abs + `"
 func TestParser(t *testing.T) {
-	var p ` + g.Name() + `
+	var p ` + g.s.Name + `
 	if data, err := ioutil.ReadFile(testname); err != nil {
 		log.Fatalf("%s", err)
 	} else {
@@ -611,7 +600,7 @@ func TestParser(t *testing.T) {
 }
 
 func BenchmarkParser(b *testing.B) {
-	var p ` + g.Name() + `
+	var p ` + g.s.Name + `
 	if data, err := ioutil.ReadFile(testname); err != nil {
 		b.Fatalf("%s", err)
 	} else {

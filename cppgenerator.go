@@ -32,10 +32,6 @@ type CPPGenerator struct {
 	CGenerator
 }
 
-func (g *CPPGenerator) FileExtension() string {
-	return ".cpp"
-}
-
 func (g *CPPGenerator) AddNode(data, defName string) string {
 	return `accept = true;
 const char* __restrict__ start = _pos;
@@ -63,15 +59,15 @@ func (g *CPPGenerator) MakeParserFunction(node *Node) error {
 	g.currentName = defName
 	data := helper(g, exp)
 
-	g.realOutput += "static bool p_" + defName + "(" + g.Name() + "*);\n"
+	g.realOutput += "static bool p_" + defName + "(" + g.s.Name + "*);\n"
 
 	if !g.havefunctions {
 		g.havefunctions = true
-		g.output += "bool " + g.Name() + "::realParse() {\n\treturn p_" + defName + "(this);\n}\n"
+		g.output += "bool " + g.s.Name + "::realParse() {\n\treturn p_" + defName + "(this);\n}\n"
 	}
 
 	indenter := CodeFormatter{}
-	indenter.Add("static bool p_" + defName + "(" + g.Name() + "  * __restrict__ p) {\n")
+	indenter.Add("static bool p_" + defName + "(" + g.s.Name + "  * __restrict__ p) {\n")
 	indenter.Inc()
 	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
 
@@ -180,7 +176,7 @@ using namespace tr1;
 `, "Range ignoreRange;",
 		"Node Root;",
 		"const char* __restrict__ LastError;")
-	g.realOutput += `class ` + g.Name() + `;
+	g.realOutput += `class ` + g.s.Name + `;
 
 class Node;
 class MyNodeMemberContainer {
@@ -289,10 +285,10 @@ public:
 	{
 		Children.push_back(n);
 	}
-	` + g.Name() + ` *P;
+	` + g.s.Name + ` *P;
 };
 
-class ` + g.Name() + ` {
+class ` + g.s.Name + ` {
 public:
 	bool Parse(const char* __restrict__ data, unsigned int len);
 	NodeMember RootNode();
@@ -305,7 +301,7 @@ private:
 	// if g.AddDebugLogging {
 	// 	g.output += "var fm parser.CodeFormatter\n\n"
 	// }
-	g.realOutput += `NodeMember ` + g.Name() + `::RootNode() {
+	g.realOutput += `NodeMember ` + g.s.Name + `::RootNode() {
 	return &Root;
 }
 
@@ -334,7 +330,7 @@ void Node::print(string indent)
 	}
 }
 
-bool ` + g.Name() + `::Parse(const char* __restrict__ data, unsigned int len) {
+bool ` + g.s.Name + `::Parse(const char* __restrict__ data, unsigned int len) {
 	parserData.data = data;
 	parserData.end = data + len;
 	parserData.pos = parserData.data;
@@ -342,13 +338,13 @@ bool ` + g.Name() + `::Parse(const char* __restrict__ data, unsigned int len) {
 	ignoreRange.Reset();
 	LastError = 0;
 	bool ret = realParse();
-	Root.Name = "` + g.Name() + `";
+	Root.Name = "` + g.s.Name + `";
 	Root.Range.start = data;
 	Root.Range.end = parserData.end;
 	return ret;
 }
 
-string ` + g.Name() + `::Data(const char* __restrict__ start, const char* __restrict__ end) {
+string ` + g.s.Name + `::Data(const char* __restrict__ start, const char* __restrict__ end) {
 	if (this->parserData.end == 0) {
 		return "";
 	}
@@ -395,7 +391,7 @@ int main(int argc, char **argv)
 	{{ParserName}} p;
 	if (p.Parse(data, size)) {
 		`+dumptree_s+`
-	}`, "{{ParserName}}", g.name, -1)
+	}`, "{{ParserName}}", g.s.Name, -1)
 	if g.s.Bench {
 		g.realOutput += `
 	int N = 1000;
@@ -421,14 +417,14 @@ int main(int argc, char **argv)
 }
 
 func (g *CPPGenerator) Finish() error {
-	ret := strings.Replace(g.realOutput+g.output, "{{ParserName}}", g.name, -1)
+	ret := strings.Replace(g.realOutput+g.output, "{{ParserName}}", g.s.Name, -1)
 	if ret[len(ret)-2:] == "\n\n" {
 		ret = ret[:len(ret)-1]
 	}
 	g.realOutput = ""
 	g.output = ""
 
-	ln := strings.ToLower(g.name)
+	ln := strings.ToLower(g.s.Name)
 	if err := g.s.WriteFile(ln+".cpp", ret); err != nil {
 		return err
 	}
@@ -436,5 +432,5 @@ func (g *CPPGenerator) Finish() error {
 }
 
 func (g *CPPGenerator) TestCommand() []string {
-	return []string{"bash", "-c", "c++ -I. -O3 " + strings.ToLower(g.name) + ".cpp -ltcmalloc -o/tmp/a.out && /tmp/a.out"}
+	return []string{"bash", "-c", "c++ -I. -O3 " + strings.ToLower(g.s.Name) + ".cpp -ltcmalloc -o/tmp/a.out && /tmp/a.out"}
 }

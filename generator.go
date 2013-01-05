@@ -69,6 +69,7 @@ type GeneratorSettings struct {
 	Debug     bool
 	Bench     bool
 	Testname  string
+	Name      string
 	WriteFile func(name, data string) error
 }
 
@@ -78,8 +79,6 @@ type Group interface {
 
 type Generator interface {
 	TestCommand() []string
-	SetName(name string)
-	Name() string
 	SetCustomActions([]CustomAction)
 	AddNode(data, defName string) string
 	Ignore(value string) string

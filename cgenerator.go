@@ -36,20 +36,11 @@ type CGenerator struct {
 	output          string
 	realOutput      string
 	AddDebugLogging bool
-	name            string
 	CustomActions   []CustomAction
 	ParserVariables []string
 	Imports         []string
 	havefunctions   bool
 	currentName     string
-}
-
-func (g *CGenerator) Name() string {
-	return g.name
-}
-
-func (g *CGenerator) SetName(name string) {
-	g.name = name
 }
 
 func (g *CGenerator) SetCustomActions(actions []CustomAction) {
@@ -97,15 +88,15 @@ func (g *CGenerator) MakeParserFunction(node *Node) error {
 	g.currentName = defName
 	data := helper(g, exp)
 
-	g.realOutput += "static int p_" + defName + "(" + g.name + "*);\n"
+	g.realOutput += "static int p_" + defName + "(" + g.s.Name + "*);\n"
 
 	if !g.havefunctions {
 		g.havefunctions = true
-		g.output += "static int " + g.name + "_parse2(" + g.name + "* __restrict__ p) {\n\treturn p_" + defName + "(p);\n}\n"
+		g.output += "static int " + g.s.Name + "_parse2(" + g.s.Name + "* __restrict__ p) {\n\treturn p_" + defName + "(p);\n}\n"
 	}
 
 	indenter := CodeFormatter{}
-	indenter.Add("static int p_" + defName + "(" + g.name + "  * __restrict__ p) {\n")
+	indenter.Add("static int p_" + defName + "(" + g.s.Name + "  * __restrict__ p) {\n")
 	indenter.Inc()
 	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
 
@@ -608,7 +599,7 @@ static int {{ParserName}}_parse2({{ParserName}}* p);
 int {{ParserName}}_parse({{ParserName}}* p, const char* __restrict__ data, unsigned int len)
 {
     Node_reset(&p->_root);
-    p->_root.name = "` + g.Name() + `";
+    p->_root.name = "` + g.s.Name + `";
     Range_reset(&p->ignoreRange);
     p->parserData.data = data;
     p->parserData.end = data + len;
@@ -703,13 +694,13 @@ int main(int argc, char **argv)
 }
 
 func (g *CGenerator) Finish() error {
-	ret := strings.Replace(g.realOutput+g.output, "{{ParserName}}", g.name, -1)
+	ret := strings.Replace(g.realOutput+g.output, "{{ParserName}}", g.s.Name, -1)
 	if ret[len(ret)-2:] == "\n\n" {
 		ret = ret[:len(ret)-1]
 	}
 	g.realOutput = ""
 	g.output = ""
-	ln := strings.ToLower(g.name)
+	ln := strings.ToLower(g.s.Name)
 
 	if err := g.s.WriteFile(ln+".c", ret); err != nil {
 		return err
@@ -718,5 +709,5 @@ func (g *CGenerator) Finish() error {
 }
 
 func (g *CGenerator) TestCommand() []string {
-	return []string{"bash", "-c", "cc -I. -O3 ./" + strings.ToLower(g.name) + ".c -ltcmalloc -o/tmp/a.out && /tmp/a.out"}
+	return []string{"bash", "-c", "cc -I. -O3 ./" + strings.ToLower(g.s.Name) + ".c -ltcmalloc -o/tmp/a.out && /tmp/a.out"}
 }
