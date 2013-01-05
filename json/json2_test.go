@@ -31,47 +31,47 @@ THE SOFTWARE.
 
 var tests = map[string]string{
 	`[1E+2]
-`: `0-7: "JsonFile"
+`: `0-7: "JSON"
 	0-6: "Array"
 		1-5: "Float" - Data: "1E+2"
 	7-7: "EndOfFile" - Data: ""
 `,
 	`["\uD834\uDD1E surrogate, four-byte UTF-8"]
-`: `0-44: "JsonFile"
+`: `0-44: "JSON"
 	0-43: "Array"
 		2-41: "Text" - Data: "\uD834\uDD1E surrogate, four-byte UTF-8"
 	44-44: "EndOfFile" - Data: ""
 `,
 	`[true]
-`: `0-7: "JsonFile"
+`: `0-7: "JSON"
 	0-6: "Array"
 		1-5: "Boolean" - Data: "true"
 	7-7: "EndOfFile" - Data: ""
 `,
 	`[{}]
-`: `0-5: "JsonFile"
+`: `0-5: "JSON"
 	0-4: "Array"
 		1-3: "Dictionary" - Data: "{}"
 	5-5: "EndOfFile" - Data: ""
 `,
 	`{}
-`: `0-3: "JsonFile"
+`: `0-3: "JSON"
 	0-2: "Dictionary" - Data: "{}"
 	3-3: "EndOfFile" - Data: ""
 `,
 	`[1E-2]
-`: `0-7: "JsonFile"
+`: `0-7: "JSON"
 	0-6: "Array"
 		1-5: "Float" - Data: "1E-2"
 	7-7: "EndOfFile" - Data: ""
 `,
 	`[]
-`: `0-3: "JsonFile"
+`: `0-3: "JSON"
 	0-2: "Array" - Data: "[]"
 	3-3: "EndOfFile" - Data: ""
 `,
 	`[-123]
-`: `0-7: "JsonFile"
+`: `0-7: "JSON"
 	0-6: "Array"
 		1-5: "Integer" - Data: "-123"
 	7-7: "EndOfFile" - Data: ""
@@ -81,7 +81,7 @@ var tests = map[string]string{
 {"foo": "bar", "core": "dump"},
 true, false, true, true, null, false
 ]
-`: `0-96: "JsonFile"
+`: `0-96: "JSON"
 	0-95: "Array"
 		1-2: "Integer" - Data: "1"
 		3-4: "Integer" - Data: "2"
@@ -106,31 +106,31 @@ true, false, true, true, null, false
 	96-96: "EndOfFile" - Data: ""
 `,
 	`[false]
-`: `0-8: "JsonFile"
+`: `0-8: "JSON"
 	0-7: "Array"
 		1-6: "Boolean" - Data: "false"
 	8-8: "EndOfFile" - Data: ""
 `,
 	`[1e+2]
-`: `0-7: "JsonFile"
+`: `0-7: "JSON"
 	0-6: "Array"
 		1-5: "Float" - Data: "1e+2"
 	7-7: "EndOfFile" - Data: ""
 `,
 	`["\u0012 escaped control character"]
-`: `0-37: "JsonFile"
+`: `0-37: "JSON"
 	0-36: "Array"
 		2-34: "Text" - Data: "\u0012 escaped control character"
 	37-37: "EndOfFile" - Data: ""
 `,
 	`[0]
-`: `0-4: "JsonFile"
+`: `0-4: "JSON"
 	0-3: "Array"
 		1-2: "Integer" - Data: "0"
 	4-4: "EndOfFile" - Data: ""
 `,
 	`{"a":[]}
-`: `0-9: "JsonFile"
+`: `0-9: "JSON"
 	0-8: "Dictionary"
 		1-5: "KeyValuePair"
 			2-3: "Text" - Data: "a"
@@ -138,115 +138,115 @@ true, false, true, true, null, false
 	9-9: "EndOfFile" - Data: ""
 `,
 	`[-1]
-`: `0-5: "JsonFile"
+`: `0-5: "JSON"
 	0-4: "Array"
 		1-3: "Integer" - Data: "-1"
 	5-5: "EndOfFile" - Data: ""
 `,
 	`[1E22]
-`: `0-7: "JsonFile"
+`: `0-7: "JSON"
 	0-6: "Array"
 		1-5: "Float" - Data: "1E22"
 	7-7: "EndOfFile" - Data: ""
 `,
 	`["\u0821 three-byte UTF-8"]
-`: `0-28: "JsonFile"
+`: `0-28: "JSON"
 	0-27: "Array"
 		2-25: "Text" - Data: "\u0821 three-byte UTF-8"
 	28-28: "EndOfFile" - Data: ""
 `,
 	`["€þıœəßð some utf-8 ĸʒ×ŋµåäö𝄞"]
-`: `0-33: "JsonFile"
+`: `0-33: "JSON"
 	0-32: "Array"
 		2-30: "Text" - Data: "€þıœəßð some utf-8 ĸʒ×ŋµåäö𝄞"
 	33-33: "EndOfFile" - Data: ""
 `,
 	`[1]
-`: `0-4: "JsonFile"
+`: `0-4: "JSON"
 	0-3: "Array"
 		1-2: "Integer" - Data: "1"
 	4-4: "EndOfFile" - Data: ""
 `,
 	`[123]
-`: `0-6: "JsonFile"
+`: `0-6: "JSON"
 	0-5: "Array"
 		1-4: "Integer" - Data: "123"
 	6-6: "EndOfFile" - Data: ""
 `,
 	`["\"\\\/\b\f\n\r\t"]
-`: `0-21: "JsonFile"
+`: `0-21: "JSON"
 	0-20: "Array"
 		2-18: "Text" - Data: "\"\\\/\b\f\n\r\t"
 	21-21: "EndOfFile" - Data: ""
 `,
 	`[123.456e78]
-`: `0-13: "JsonFile"
+`: `0-13: "JSON"
 	0-12: "Array"
 		1-11: "Float" - Data: "123.456e78"
 	13-13: "EndOfFile" - Data: ""
 `,
 	`[-0]
-`: `0-5: "JsonFile"
+`: `0-5: "JSON"
 	0-4: "Array"
 		1-3: "Integer" - Data: "-0"
 	5-5: "EndOfFile" - Data: ""
 `,
 	`["\u0123 two-byte UTF-8"]
-`: `0-26: "JsonFile"
+`: `0-26: "JSON"
 	0-25: "Array"
 		2-23: "Text" - Data: "\u0123 two-byte UTF-8"
 	26-26: "EndOfFile" - Data: ""
 `,
 	`[123.456789]
-`: `0-13: "JsonFile"
+`: `0-13: "JSON"
 	0-12: "Array"
 		1-11: "Float" - Data: "123.456789"
 	13-13: "EndOfFile" - Data: ""
 `,
 	`[""]
-`: `0-5: "JsonFile"
+`: `0-5: "JSON"
 	0-4: "Array"
 		2-2: "Text" - Data: ""
 	5-5: "EndOfFile" - Data: ""
 `,
 	`[1e-2]
-`: `0-7: "JsonFile"
+`: `0-7: "JSON"
 	0-6: "Array"
 		1-5: "Float" - Data: "1e-2"
 	7-7: "EndOfFile" - Data: ""
 `,
 	`["a"]
-`: `0-6: "JsonFile"
+`: `0-6: "JSON"
 	0-5: "Array"
 		2-3: "Text" - Data: "a"
 	6-6: "EndOfFile" - Data: ""
 `,
 	`["\u002c one-byte UTF-8"]
-`: `0-26: "JsonFile"
+`: `0-26: "JSON"
 	0-25: "Array"
 		2-23: "Text" - Data: "\u002c one-byte UTF-8"
 	26-26: "EndOfFile" - Data: ""
 `,
 	`["abcdefghijklmnopqrstuvwxyz1234567890 "]
-`: `0-42: "JsonFile"
+`: `0-42: "JSON"
 	0-41: "Array"
 		2-39: "Text" - Data: "abcdefghijklmnopqrstuvwxyz1234567890 "
 	42-42: "EndOfFile" - Data: ""
 `,
 	`[123e45]
-`: `0-9: "JsonFile"
+`: `0-9: "JSON"
 	0-8: "Array"
 		1-7: "Float" - Data: "123e45"
 	9-9: "EndOfFile" - Data: ""
 `,
 	`[null]
-`: `0-7: "JsonFile"
+`: `0-7: "JSON"
 	0-6: "Array"
 		1-5: "Null" - Data: "null"
 	7-7: "EndOfFile" - Data: ""
 `,
 	`[123e-10000000]
-`: `0-16: "JsonFile"
+`: `0-16: "JSON"
 	0-15: "Array"
 		1-14: "Float" - Data: "123e-10000000"
 	16-16: "EndOfFile" - Data: ""
@@ -329,16 +329,14 @@ foo
 func TestParserComprehensive(t *testing.T) {
 	var p JSON
 	for k, v := range tests {
-		p.SetData(k)
-		if p.Parse() != true {
+		if p.Parse(k) != true {
 			t.Fatalf("Didn't parse correctly: %s", k)
 		} else if p.RootNode().String() != v {
 			t.Fatalf("Test %s failed\nExpected: %s\nReceived, %s", k, v, p.RootNode())
 		}
 	}
 	for k, v := range invalid {
-		p.SetData(k)
-		if p.Parse() {
+		if p.Parse(k) {
 			root := p.RootNode()
 			if root.Children[len(root.Children)-1].Name == "EndOfFile" {
 				t.Fatalf("Succeeded, but shouldn't have: %s", k)

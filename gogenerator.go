@@ -1,16 +1,43 @@
+/*
+Copyright (c) 2012-2013 Fredrik Ehnbom
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+		list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+		this list of conditions and the following disclaimer in the documentation
+		and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 package parser
 
 import (
 	"container/list"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
 
-type GoGenerator2 struct {
+type GoGenerator struct {
+	s                     GeneratorSettings
 	output                string
 	AddDebugLogging       bool
-	Name                  string
+	name                  string
 	CustomActions         []CustomAction
 	ParserVariables       []string
 	Imports               []string
@@ -18,9 +45,25 @@ type GoGenerator2 struct {
 	currentFunctions      string
 	currentFunctionsCount int
 	currentName           string
+	testfile              string
+	debug, bench          bool
 }
 
-func (g *GoGenerator2) AddNode(data, defName string) string {
+func (g *GoGenerator) Name() string {
+	return g.name
+}
+func (g *GoGenerator) SetName(name string) {
+	g.name = name
+}
+
+func (g *GoGenerator) SetCustomActions(actions []CustomAction) {
+	g.CustomActions = actions
+}
+
+func (g *GoGenerator) FileExtension() string {
+	return ".go"
+}
+func (g *GoGenerator) AddNode(data, defName string) string {
 	return `accept = true
 start := p.ParserData.Pos
 ` + g.Call(data) + `
@@ -31,7 +74,7 @@ if accept {
 	node.Name = "` + defName + `"
 	node.P = p
 	node.Range.Clip(p.IgnoreRange)
-	c := make([]*parser.Node, len(node.Children))
+	c := make([]*Node, len(node.Children))
 	copy(c, node.Children)
 	node.Children = c
 	p.Root.Append(node)
@@ -39,11 +82,11 @@ if accept {
 	p.Root.Discard(start)
 }
 if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-	p.IgnoreRange = parser.Range{}
+	p.IgnoreRange = Range{}
 }`
 }
 
-func (g *GoGenerator2) Ignore(data string) string {
+func (g *GoGenerator) Ignore(data string) string {
 	return `accept = true
 start := p.ParserData.Pos
 ` + g.Call(data) + `
@@ -55,7 +98,7 @@ if accept && start != p.ParserData.Pos {
 }
 `
 }
-func (g *GoGenerator2) MakeParserFunction(node *Node) {
+func (g *GoGenerator) MakeParserFunction(node *Node) error {
 	id := node.Children[0]
 	exp := node.Children[len(node.Children)-1]
 	defName := helper(g, id)
@@ -64,11 +107,11 @@ func (g *GoGenerator2) MakeParserFunction(node *Node) {
 
 	if !g.havefunctions {
 		g.havefunctions = true
-		g.output += "func (p *" + g.Name + ") Parse() bool {\n\treturn p_" + defName + "(p)\n}\n"
+		g.output += "func (p *" + g.name + ") realParse() bool {\n\treturn p_" + defName + "(p)\n}\n"
 	}
 
 	indenter := CodeFormatter{}
-	indenter.Add("func p_" + defName + "(p *" + g.Name + ") bool {\n")
+	indenter.Add("func p_" + defName + "(p *" + g.name + ") bool {\n")
 	indenter.Inc()
 	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
 
@@ -126,13 +169,14 @@ return accept
 	g.output += indenter.String()
 	g.currentFunctions = ""
 	g.currentFunctionsCount = 0
+	return nil
 }
 
-func (g *GoGenerator2) MakeParserCall(value string) string {
+func (g *GoGenerator) MakeParserCall(value string) string {
 	return "p_" + value
 }
 
-func (g *GoGenerator2) CheckInRange(a, b string) string {
+func (g *GoGenerator) CheckInRange(a, b string) string {
 	return `if p.ParserData.Pos >= len(p.ParserData.Data) {
 	accept = false
 } else {
@@ -146,7 +190,7 @@ func (g *GoGenerator2) CheckInRange(a, b string) string {
 }`
 }
 
-func (g *GoGenerator2) CheckInSet(a string) string {
+func (g *GoGenerator) CheckInSet(a string) string {
 	a = strings.Replace(a, "\\[", "[", -1)
 	a = strings.Replace(a, "\\]", "]", -1)
 	tests := ""
@@ -177,7 +221,7 @@ func (g *GoGenerator2) CheckInSet(a string) string {
 }`
 }
 
-func (g *GoGenerator2) CheckAnyChar() string {
+func (g *GoGenerator) CheckAnyChar() string {
 	return `if p.ParserData.Pos >= len(p.ParserData.Data) {
 	accept = false
 } else {
@@ -186,7 +230,7 @@ func (g *GoGenerator2) CheckAnyChar() string {
 }`
 }
 
-func (g *GoGenerator2) CheckNext(a string) string {
+func (g *GoGenerator) CheckNext(a string) string {
 	/*
 	 */
 
@@ -235,20 +279,20 @@ func (g *GoGenerator2) CheckNext(a string) string {
 }`, pos, tests, pos)
 }
 
-func (g *GoGenerator2) AssertNot(a string) string {
+func (g *GoGenerator) AssertNot(a string) string {
 	return `s := p.ParserData.Pos
 ` + g.Call(a) + `
 p.ParserData.Pos = s
 accept = !accept`
 }
 
-func (g *GoGenerator2) AssertAnd(a string) string {
+func (g *GoGenerator) AssertAnd(a string) string {
 	return `s := p.ParserData.Pos
 ` + g.Call(a) + `
 p.ParserData.Pos = s`
 }
 
-func (g *GoGenerator2) ZeroOrMore(a string) string {
+func (g *GoGenerator) ZeroOrMore(a string) string {
 	var cf CodeFormatter
 	cf.Add("{\n")
 	cf.Inc()
@@ -264,7 +308,7 @@ func (g *GoGenerator2) ZeroOrMore(a string) string {
 	return cf.String()
 }
 
-func (g *GoGenerator2) OneOrMore(a string) string {
+func (g *GoGenerator) OneOrMore(a string) string {
 	var cf CodeFormatter
 	cf.Add("{\n")
 	cf.Inc()
@@ -289,7 +333,7 @@ accept = true
 	return cf.String()
 }
 
-func (g *GoGenerator2) Maybe(a string) string {
+func (g *GoGenerator) Maybe(a string) string {
 	return g.Call(a) + "\naccept = true"
 }
 
@@ -318,7 +362,7 @@ func (b *needOneGroup) Add(value, name string) {
 	b.cf.Inc()
 }
 
-func (g *GoGenerator2) BeginGroup(requireAll bool) Group {
+func (g *GoGenerator) BeginGroup(requireAll bool) Group {
 	if requireAll {
 		r := needAllGroup{g: g}
 		r.cf.Add(`{
@@ -334,11 +378,13 @@ func (g *GoGenerator2) BeginGroup(requireAll bool) Group {
 	r.cf.Inc()
 	return &r
 }
-func (g *GoGenerator2) UpdateError(msg string) string {
-	return "if p.LastError < p.ParserData.Pos { p.LastError = p.ParserData.Pos } "
+func (g *GoGenerator) UpdateError(msg string) string {
+	return `if p.LastError < p.ParserData.Pos {
+	p.LastError = p.ParserData.Pos
+}`
 	// return "{\n\te := fmt.Sprintf(`Expected " + msg + " near %d`, p.ParserData.Pos)\n\tif len(p.LastError) != 0 {\n\t\te = e + \"\\n\" + p.LastError\n\t}\n\tp.LastError = e\n}"
 }
-func (g *GoGenerator2) EndGroup(gr Group) string {
+func (g *GoGenerator) EndGroup(gr Group) string {
 	switch t := gr.(type) {
 	case *needAllGroup:
 
@@ -366,7 +412,7 @@ func (g *GoGenerator2) EndGroup(gr Group) string {
 var inlinere = regexp.MustCompile(`^return ([\s\S]*?)\(p\)$`)
 var inlinere2 = regexp.MustCompile(`^return (\w+\(p, [\s\S]*?\))($|\}\(p\)$)`)
 
-func (g *GoGenerator2) MakeFunction(value string) string {
+func (g *GoGenerator) MakeFunction(value string) string {
 	if strings.HasSuffix(value, ")") || strings.HasSuffix(value, "}") {
 		return value
 	}
@@ -374,17 +420,17 @@ func (g *GoGenerator2) MakeFunction(value string) string {
 	if inlinere.MatchString(value) {
 		return inlinere.FindStringSubmatch(value)[1]
 	} else if inlinere2.MatchString(value) {
-		return "func(p *" + g.Name + ") bool { " + value + " }"
+		return "func(p *" + g.name + ") bool { " + value + " }"
 	}
 	f := CodeFormatter{}
-	f.Add("func(p *" + g.Name + ") bool {\n")
+	f.Add("func(p *" + g.name + ") bool {\n")
 	f.Inc()
 	f.Add("accept := true\n" + value + "\n" + g.Return("accept") + "\n")
 	f.Dec()
 	f.Add("\n}")
 	return f.String()
 }
-func (g *GoGenerator2) Return(value string) string {
+func (g *GoGenerator) Return(value string) string {
 	return "return " + value
 }
 
@@ -393,7 +439,7 @@ var (
 	callre2 = regexp.MustCompile(`^\s*func\(`)
 )
 
-func (g *GoGenerator2) Call(value string) string {
+func (g *GoGenerator) Call(value string) string {
 	pref := "accept = "
 	if callre1.MatchString(value) {
 		pref = ""
@@ -407,68 +453,76 @@ func (g *GoGenerator2) Call(value string) string {
 	return value
 }
 
-func (g *GoGenerator2) Begin() {
-	imports := ""
+func (g *GoGenerator) Begin(s GeneratorSettings) error {
+	g.s = s
+	imports := "\n\nimport (\n\t. \"parser\"\n"
 	impList := g.Imports
 	if g.AddDebugLogging {
 		impList = append(impList, "log")
 	}
-	impList = append(impList, "parser")
 	if len(impList) > 0 {
-		imports += "\nimport (\n\t\"" + strings.Join(impList, "\"\n\t\"") + "\"\n)\n"
+		imports += "\t\"" + strings.Join(impList, "\"\n\t\"") + "\"\n"
 	}
+	imports += ")\n"
+
 	g.output = `/*
-Copyright (c) 2012 Fredrik Ehnbom
+Copyright (c) 2012-2013 Fredrik Ehnbom
+All rights reserved.
 
-This software is provided 'as-is', without any express or implied
-warranty. In no event will the authors be held liable for any damages
-arising from the use of this software.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-Permission is granted to anyone to use this software for any purpose,
-including commercial applications, and to alter it and redistribute it
-freely, subject to the following restrictions:
+1. Redistributions of source code must retain the above copyright notice, this
+		list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+		this list of conditions and the following disclaimer in the documentation
+		and/or other materials provided with the distribution.
 
-   1. The origin of this software must not be misrepresented; you must not
-   claim that you wrote the original software. If you use this software
-   in a product, an acknowledgment in the product documentation would be
-   appreciated but is not required.
-
-   2. Altered source versions must be plainly marked as such, and must not be
-   misrepresented as being the original software.
-
-   3. This notice may not be removed or altered from any source
-   distribution.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 `
 	members := g.ParserVariables
 	members = append(members, `ParserData struct {
 		Pos  int
 		Data []rune
 	}
-`, "IgnoreRange parser.Range",
-		"Root        parser.Node",
+`, "IgnoreRange Range",
+		"Root        Node",
 		"LastError   int")
-	g.output += fmt.Sprintln("package " + strings.ToLower(g.Name) + "\n" + imports + "\ntype " + g.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
+	g.output += fmt.Sprintln("package " + strings.ToLower(g.name) + imports + "\ntype " + g.name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
+
 	if g.AddDebugLogging {
-		g.output += "var fm parser.CodeFormatter\n\n"
+		g.output += "var fm CodeFormatter\n\n"
 	}
-	g.output += `func (p *` + g.Name + `) RootNode() *parser.Node {
-	return p.Root.Children[0]
+	g.output += `func (p *` + g.name + `) RootNode() *Node {
+	return &p.Root
 }
 
-func (p *` + g.Name + `) SetData(data string) {
+func (p *` + g.name + `) Parse(data string) bool {
 	p.ParserData.Data = ([]rune)(data)
-	p.Reset()
-}
 
-func (p *` + g.Name + `) Reset() {
 	p.ParserData.Pos = 0
-	p.Root = parser.Node{}
-	p.IgnoreRange = parser.Range{}
+	p.Root = Node{Name: "` + g.name + `"}
+	p.IgnoreRange = Range{}
 	p.LastError = 0
+	ret := p.realParse()
+	if len(p.Root.Children) > 0 {
+		p.Root.Range = Range{p.Root.Children[0].Range.Start, p.Root.Children[len(p.Root.Children)-1].Range.End}
+	}
+	return ret
 }
 
-func (p *` + g.Name + `) Data(start, end int) string {
+func (p *` + g.name + `) Data(start, end int) string {
 	l := len(p.ParserData.Data)
 	if l == 0 {
 		return ""
@@ -485,13 +539,13 @@ func (p *` + g.Name + `) Data(start, end int) string {
 	return string(p.ParserData.Data[start:end])
 }
 
-func (p *` + g.Name + `) Error() parser.Error {
+func (p *` + g.name + `) Error() Error {
 	errstr := ""
 
 	line := 1
 	column := 1
 	for _, r := range p.ParserData.Data[:p.LastError] {
-		column ++
+		column++
 		if r == '\n' {
 			line++
 			column = 1
@@ -508,17 +562,77 @@ func (p *` + g.Name + `) Error() parser.Error {
 			errstr = "Unexpected " + string(r)
 		}
 	}
-	return parser.NewError(line, column, errstr)
+	return NewError(line, column, errstr)
 }
 
 `
+	return nil
 }
 
-func (g *GoGenerator2) Finish() string {
+func (g *GoGenerator) Finish() error {
 	ret := g.output
 	if ret[len(ret)-2:] == "\n\n" {
 		ret = ret[:len(ret)-1]
 	}
 	g.output = ""
-	return ret
+	ln := strings.ToLower(g.name)
+	if err := g.s.WriteFile(ln+".go", ret); err != nil {
+		return err
+	}
+
+	dumptree_s := ""
+
+	if g.s.Debug {
+		dumptree_s = "t.Log(\"\\n\"+root.String())"
+	}
+	abs, _ := filepath.Abs(g.s.Testname)
+	test := `package ` + strings.ToLower(g.Name()) + `
+		import (
+			"io/ioutil"
+			"log"
+			"testing"
+		)
+const testname = "` + abs + `"
+func TestParser(t *testing.T) {
+	var p ` + g.Name() + `
+	if data, err := ioutil.ReadFile(testname); err != nil {
+		log.Fatalf("%s", err)
+	} else {
+		if !p.Parse(string(data)) {
+			t.Fatalf("Didn't parse correctly: %s\n", p.Error())
+		} else {
+			root := p.RootNode()
+			` + dumptree_s + `
+			if root.Range.End != len(p.ParserData.Data) {
+				t.Fatalf("Parsing didn't finish: %v\n%s", root, p.Error())
+			}
+		}
+	}
+}
+
+func BenchmarkParser(b *testing.B) {
+	var p ` + g.Name() + `
+	if data, err := ioutil.ReadFile(testname); err != nil {
+		b.Fatalf("%s", err)
+	} else {
+		d2 := string(data)
+		for i := 0; i < b.N; i++ {
+			p.Parse(d2)
+		}
+	}
+}
+
+		`
+	if err := g.s.WriteFile(ln+"_test.go", test); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (g *GoGenerator) TestCommand() []string {
+	cmd := []string{"go", "test", "-v", "-gcflags", "-B"}
+	if g.s.Bench {
+		cmd = append(cmd, "-bench", ".")
+	}
+	return cmd
 }

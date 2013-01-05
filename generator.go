@@ -1,24 +1,26 @@
 /*
-Copyright (c) 2012 Fredrik Ehnbom
+Copyright (c) 2012-2013 Fredrik Ehnbom
+All rights reserved.
 
-This software is provided 'as-is', without any express or implied
-warranty. In no event will the authors be held liable for any damages
-arising from the use of this software.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-Permission is granted to anyone to use this software for any purpose,
-including commercial applications, and to alter it and redistribute it
-freely, subject to the following restrictions:
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
 
-   1. The origin of this software must not be misrepresented; you must not
-   claim that you wrote the original software. If you use this software
-   in a product, an acknowledgment in the product documentation would be
-   appreciated but is not required.
-
-   2. Altered source versions must be plainly marked as such, and must not be
-   misrepresented as being the original software.
-
-   3. This notice may not be removed or altered from any source
-   distribution.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package parser
 
@@ -63,15 +65,28 @@ func (i *CodeFormatter) String() string {
 	return i.data
 }
 
+type GeneratorSettings struct {
+	Debug     bool
+	Bench     bool
+	Testname  string
+	WriteFile func(name, data string) error
+}
+
 type Group interface {
 	Add(value, name string)
 }
 
 type Generator interface {
+	TestCommand() []string
+	SetName(name string)
+	Name() string
+	SetCustomActions([]CustomAction)
+	AddNode(data, defName string) string
+	Ignore(value string) string
 	Return(value string) string
 	Call(value string) string
 	MakeFunction(value string) string
-	MakeParserFunction(definitionNode *Node)
+	MakeParserFunction(definitionNode *Node) error
 	MakeParserCall(value string) string
 	CheckInRange(a, b string) string
 	CheckInSet(a string) string
@@ -84,8 +99,8 @@ type Generator interface {
 	Maybe(a string) string
 	BeginGroup(requireAll bool) Group
 	EndGroup(g Group) string
-	Begin()
-	Finish() string
+	Begin(GeneratorSettings) error
+	Finish() error
 }
 type CustomAction struct {
 	Name   string
@@ -195,11 +210,15 @@ func helper(gen Generator, node *Node) (retstring string) {
 	return
 }
 
-func GenerateParser(rootNode *Node, gen Generator) string {
-	gen.Begin()
+func GenerateParser(rootNode *Node, gen Generator, s GeneratorSettings) error {
+	if err := gen.Begin(s); err != nil {
+		return err
+	}
 	for _, node := range rootNode.Children {
 		if node.Name == "Definition" {
-			gen.MakeParserFunction(node)
+			if err := gen.MakeParserFunction(node); err != nil {
+				return err
+			}
 		}
 	}
 	return gen.Finish()

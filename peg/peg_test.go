@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"parser"
+	"strings"
 	"testing"
 )
 
@@ -43,9 +44,8 @@ func TestParser(t *testing.T) {
 	if data, err := ioutil.ReadFile("./peg.peg"); err != nil {
 		t.Fatalf("%s", err)
 	} else {
-		p.SetData(string(data))
 		//		if !p.Grammar() {
-		if !p.Parse() {
+		if !p.Parse(string(data)) {
 			t.Fatalf("Didn't parse correctly")
 		} else {
 			if data, err := ioutil.ReadFile("./peg.go"); err != nil {
@@ -53,15 +53,14 @@ func TestParser(t *testing.T) {
 			} else {
 				// t.Log(p.Root)
 				t.Log(p.RootNode())
-				gen := parser.GoGenerator2{}
+				gen := parser.GoGenerator{}
 				ignore := func(g parser.Generator, in string) string {
 					return gen.Ignore(in)
 				}
 				justcall := func(g parser.Generator, in string) string {
 					return g.Call(in)
 				}
-				gen = parser.GoGenerator2{
-					Name: "Peg", AddDebugLogging: false,
+				gen = parser.GoGenerator{
 					CustomActions: []parser.CustomAction{
 						{"Spacing", ignore},
 						{"Space", ignore},
@@ -73,9 +72,23 @@ func TestParser(t *testing.T) {
 						{"OPEN", ignore},
 						{"CLOSE", ignore},
 						{"Comment", ignore},
+						{"Grammar", ignore},
 					},
 				}
-				data2 := []byte(parser.GenerateParser(p.RootNode(), &gen))
+				gen.SetName("Peg")
+				var data2 []byte
+				s := parser.GeneratorSettings{
+					WriteFile: func(name, data string) error {
+						if !strings.Contains(name, "test") {
+							data2 = []byte(data)
+						}
+						return nil
+					},
+				}
+
+				if err := parser.GenerateParser(p.RootNode(), &gen, s); err != nil {
+					t.Fatal(err.Error())
+				}
 				if cmp := bytes.Compare(data, data2); cmp != 0 {
 					d, _ := diff(data, data2)
 					t.Log(p.RootNode())
@@ -91,10 +104,9 @@ func BenchmarkParser(b *testing.B) {
 	if data, err := ioutil.ReadFile("./peg.peg"); err != nil {
 		b.Fatalf("%s", err)
 	} else {
-		p.SetData(string(data))
+		d := string(data)
 		for i := 0; i < b.N; i++ { //use b.N for looping
-			p.Reset()
-			p.Parse()
+			p.Parse(d)
 		}
 	}
 }
