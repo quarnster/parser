@@ -75,9 +75,9 @@ func TestParser(t *testing.T) {
 						{"Grammar", ignore},
 					},
 				}
-				gen.SetName("Peg")
 				var data2 []byte
 				s := parser.GeneratorSettings{
+					Name: "Peg"
 					WriteFile: func(name, data string) error {
 						if !strings.Contains(name, "test") {
 							data2 = []byte(data)

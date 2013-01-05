@@ -28,7 +28,6 @@ package parser
 import (
 	"container/list"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -574,14 +573,13 @@ func (g *GoGenerator) Finish() error {
 	if g.s.Debug {
 		dumptree_s = "t.Log(\"\\n\"+root.String())"
 	}
-	abs, _ := filepath.Abs(g.s.Testname)
 	test := `package ` + strings.ToLower(g.s.Name) + `
 		import (
 			"io/ioutil"
 			"log"
 			"testing"
 		)
-const testname = "` + abs + `"
+const testname = "` + g.s.Testname + `"
 func TestParser(t *testing.T) {
 	var p ` + g.s.Name + `
 	if data, err := ioutil.ReadFile(testname); err != nil {
