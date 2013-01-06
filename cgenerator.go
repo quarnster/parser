@@ -47,10 +47,6 @@ func (g *CGenerator) SetCustomActions(actions []CustomAction) {
 	g.CustomActions = actions
 }
 
-func (g *CGenerator) FileExtension() string {
-	return ".c"
-}
-
 func (g *CGenerator) AddNode(data, defName string) string {
 	return `accept = TRUE;
 const char* __restrict__ start = p->parserData.pos;
@@ -143,7 +139,7 @@ func (g *CGenerator) MakeParserFunction(node *Node) error {
 			}
 			indenter.Add("int accept = FALSE;\n" + data + end)
 		} else {
-			indenter.Add(g.Return(data) + "\n")
+			indenter.Add("return " + data + ";\n")
 		}
 	}
 	indenter.Dec()
@@ -390,28 +386,6 @@ func (g *CGenerator) EndGroup(gr Group) string {
 	}
 	panic(gr)
 }
-
-// var inlinere = regexp.MustCompile(`^return ([\s\S]*?)\(p\)$`)
-// var inlinere2 = regexp.MustCompile(`^return (\w+\(p, [\s\S]*?\))($|\}\(p\)$)`)
-
-func (g *CGenerator) MakeFunction(value string) string {
-	if strings.HasSuffix(value, ")") || strings.HasSuffix(value, "}") {
-		return value
-	}
-
-	if inlinere.MatchString(value) {
-		return inlinere.FindStringSubmatch(value)[1]
-	}
-	panic("here")
-}
-func (g *CGenerator) Return(value string) string {
-	return "return " + value
-}
-
-// var (
-// 	callre1 = regexp.MustCompile(`^\s*accept\s`)
-// 	callre2 = regexp.MustCompile(`^\s*func\(`)
-// )
 
 func (g *CGenerator) Call(value string) string {
 	pref := "accept = "

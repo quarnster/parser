@@ -82,9 +82,7 @@ type Generator interface {
 	SetCustomActions([]CustomAction)
 	AddNode(data, defName string) string
 	Ignore(value string) string
-	Return(value string) string
 	Call(value string) string
-	MakeFunction(value string) string
 	MakeParserFunction(definitionNode *Node) error
 	MakeParserCall(value string) string
 	CheckInRange(a, b string) string

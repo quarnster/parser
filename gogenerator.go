@@ -46,6 +46,7 @@ type GoGenerator struct {
 	testfile              string
 	debug, bench          bool
 	inlineCount           int
+	calledP               bool
 	RootNode              *Node
 }
 
@@ -54,26 +55,34 @@ func (g *GoGenerator) SetCustomActions(actions []CustomAction) {
 }
 
 func (g *GoGenerator) AddNode(data, defName string) string {
-	return `accept = true
+	ret := `accept = true
 start := p.ParserData.Pos
 ` + g.Call(data) + `
 end := p.ParserData.Pos
-p.Root.P = p
 if accept {
-	node := p.Root.Cleanup(start, end)
+`
+	if g.calledP || true {
+		ret += `	node := p.Root.Cleanup(start, end)
 	node.Name = "` + defName + `"
 	node.P = p
 	node.Range.Clip(p.IgnoreRange)
-	c := make([]*Node, len(node.Children))
-	copy(c, node.Children)
-	node.Children = c
 	p.Root.Append(node)
 } else {
-	p.Root.Discard(start)
+	p.Root.Discard(start)`
+	} else {
+		ret += `	node := &Node{Range:Range{start,end}}
+	node.Name = "` + defName + `"
+	node.P = p
+	node.Range.Clip(p.IgnoreRange)
+	p.Root.Append(node)`
+	}
+	ret += `
 }
 if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 	p.IgnoreRange = Range{}
-}`
+}
+`
+	return ret
 }
 
 func (g *GoGenerator) Ignore(data string) string {
@@ -89,6 +98,7 @@ if accept && start != p.ParserData.Pos {
 `
 }
 func (g *GoGenerator) MakeParserFunction(node *Node) error {
+	g.calledP = false
 	id := node.Children[0]
 	exp := node.Children[len(node.Children)-1]
 	defName := helper(g, id)
@@ -150,7 +160,7 @@ return accept
 			}
 			indenter.Add("accept := false\n" + data + end)
 		} else {
-			indenter.Add(g.Return(data) + "\n")
+			indenter.Add("return " + data + "\n")
 		}
 	}
 	indenter.Dec()
@@ -163,30 +173,31 @@ return accept
 }
 
 func (g *GoGenerator) MakeParserCall(value string) string {
-	if g.inlineCount < 0 && g.RootNode != nil {
-		g.inlineCount++
-		for _, child := range g.RootNode.Children {
-			if child.Name == "Definition" && child.Children[0].Data() == value {
-				data := helper(g, child.Children[len(child.Children)-1])
-				defaultAction := true
-				for i := range g.CustomActions {
-					if value == g.CustomActions[i].Name {
-						defaultAction = false
-						data = g.CustomActions[i].Action(g, data)
-						break
-					}
-				}
-				if defaultAction {
-					data = g.AddNode(data, value)
-				}
+	g.calledP = true
+	// if g.inlineCount < 0 && g.RootNode != nil {
+	// 	g.inlineCount++
+	// 	for _, child := range g.RootNode.Children {
+	// 		if child.Name == "Definition" && child.Children[0].Data() == value {
+	// 			data := helper(g, child.Children[len(child.Children)-1])
+	// 			defaultAction := true
+	// 			for i := range g.CustomActions {
+	// 				if value == g.CustomActions[i].Name {
+	// 					defaultAction = false
+	// 					data = g.CustomActions[i].Action(g, data)
+	// 					break
+	// 				}
+	// 			}
+	// 			if defaultAction {
+	// 				data = g.AddNode(data, value)
+	// 			}
 
-				ret := "/* inlined " + value + "*/\n" + data
-				g.inlineCount--
-				return ret
-			}
-		}
-		g.inlineCount--
-	}
+	// 			ret := "/* inlined " + value + "*/\n" + data
+	// 			g.inlineCount--
+	// 			return ret
+	// 		}
+	// 	}
+	// 	g.inlineCount--
+	// }
 
 	return "p_" + value
 }
@@ -428,31 +439,6 @@ func (g *GoGenerator) EndGroup(gr Group) string {
 	panic(gr)
 }
 
-var inlinere = regexp.MustCompile(`^return ([\s\S]*?)\(p\)$`)
-var inlinere2 = regexp.MustCompile(`^return (\w+\(p, [\s\S]*?\))($|\}\(p\)$)`)
-
-func (g *GoGenerator) MakeFunction(value string) string {
-	if strings.HasSuffix(value, ")") || strings.HasSuffix(value, "}") {
-		return value
-	}
-
-	if inlinere.MatchString(value) {
-		return inlinere.FindStringSubmatch(value)[1]
-	} else if inlinere2.MatchString(value) {
-		return "func(p *" + g.s.Name + ") bool { " + value + " }"
-	}
-	f := CodeFormatter{}
-	f.Add("func(p *" + g.s.Name + ") bool {\n")
-	f.Inc()
-	f.Add("accept := true\n" + value + "\n" + g.Return("accept") + "\n")
-	f.Dec()
-	f.Add("\n}")
-	return f.String()
-}
-func (g *GoGenerator) Return(value string) string {
-	return "return " + value
-}
-
 var (
 	callre1 = regexp.MustCompile(`^\s*accept\s`)
 	callre2 = regexp.MustCompile(`^\s*func\(`)
@@ -531,7 +517,7 @@ func (p *` + g.s.Name + `) Parse(data string) bool {
 	p.ParserData.Data = ([]byte)(data)
 
 	p.ParserData.Pos = 0
-	p.Root = Node{Name: "` + g.s.Name + `"}
+	p.Root = Node{Name: "` + g.s.Name + `", P:p}
 	p.IgnoreRange = Range{}
 	p.LastError = 0
 	ret := p.realParse()

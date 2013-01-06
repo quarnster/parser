@@ -116,7 +116,7 @@ func (g *JavaGenerator) MakeParserFunction(node *Node) error {
 		}
 		indenter.Add("boolean accept = false;\n" + data + end)
 	} else {
-		indenter.Add(g.Return(data) + "\n")
+		indenter.Add("return " + data + ";\n")
 	}
 	indenter.Dec()
 	indenter.Add("}\n\n")
@@ -376,20 +376,6 @@ func (g *JavaGenerator) EndGroup(gr Group) string {
 		return t.cf.String()
 	}
 	panic(gr)
-}
-
-func (g *JavaGenerator) MakeFunction(value string) string {
-	if strings.HasSuffix(value, ")") || strings.HasSuffix(value, "}") {
-		return value
-	}
-
-	if inlinere.MatchString(value) {
-		return inlinere.FindStringSubmatch(value)[1]
-	}
-	panic("here")
-}
-func (g *JavaGenerator) Return(value string) string {
-	return "return " + value
 }
 
 var javare = regexp.MustCompile("(^if |(}|;)$)")

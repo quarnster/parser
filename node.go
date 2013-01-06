@@ -122,6 +122,9 @@ func (n *Node) Cleanup(pos, end int) *Node {
 
 	if popEnd != 0 {
 		popped.Children = n.Children[popIdx:popEnd]
+		c := make([]*Node, len(popped.Children))
+		copy(c, popped.Children)
+		popped.Children = c
 	}
 	if popIdx != back {
 		n.Children = n.Children[:popIdx]

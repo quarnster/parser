@@ -114,7 +114,7 @@ func (g *CPPGenerator) MakeParserFunction(node *Node) error {
 			}
 			indenter.Add("bool accept = false;\nconst register char * __restrict__ &_pos = p->parserData.pos;\n" + data + end)
 		} else {
-			indenter.Add(g.Return(data) + "\n")
+			indenter.Add("return " + data + ";\n")
 		}
 	}
 	indenter.Dec()

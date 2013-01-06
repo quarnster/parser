@@ -95,6 +95,10 @@ func main() {
 				gen = &parser.CPPGenerator{}
 			case "java":
 				gen = &parser.JavaGenerator{}
+			case "py":
+				gen = &parser.PyGenerator{}
+			default:
+				panic(generator)
 			}
 
 			//			gen.AddDebugLogging = debug
