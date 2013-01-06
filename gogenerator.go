@@ -45,6 +45,8 @@ type GoGenerator struct {
 	currentName           string
 	testfile              string
 	debug, bench          bool
+	inlineCount           int
+	RootNode              *Node
 }
 
 func (g *GoGenerator) SetCustomActions(actions []CustomAction) {
@@ -58,7 +60,7 @@ start := p.ParserData.Pos
 end := p.ParserData.Pos
 p.Root.P = p
 if accept {
-	node := p.Root.Cleanup(start, p.ParserData.Pos)
+	node := p.Root.Cleanup(start, end)
 	node.Name = "` + defName + `"
 	node.P = p
 	node.Range.Clip(p.IgnoreRange)
@@ -161,6 +163,31 @@ return accept
 }
 
 func (g *GoGenerator) MakeParserCall(value string) string {
+	if g.inlineCount < 0 && g.RootNode != nil {
+		g.inlineCount++
+		for _, child := range g.RootNode.Children {
+			if child.Name == "Definition" && child.Children[0].Data() == value {
+				data := helper(g, child.Children[len(child.Children)-1])
+				defaultAction := true
+				for i := range g.CustomActions {
+					if value == g.CustomActions[i].Name {
+						defaultAction = false
+						data = g.CustomActions[i].Action(g, data)
+						break
+					}
+				}
+				if defaultAction {
+					data = g.AddNode(data, value)
+				}
+
+				ret := "/* inlined " + value + "*/\n" + data
+				g.inlineCount--
+				return ret
+			}
+		}
+		g.inlineCount--
+	}
+
 	return "p_" + value
 }
 
@@ -284,7 +311,7 @@ func (g *GoGenerator) ZeroOrMore(a string) string {
 	var cf CodeFormatter
 	cf.Add("{\n")
 	cf.Inc()
-	cf.Add(g.Call(a))
+	cf.Add("accept = true")
 	cf.Add("\nfor accept {\n")
 	cf.Inc()
 	cf.Add(g.Call(a))
@@ -378,9 +405,13 @@ func (g *GoGenerator) EndGroup(gr Group) string {
 
 		for n := t.stack.Back(); len(t.cf.Level()) > 1; n = n.Prev() {
 			t.cf.Dec()
-			t.cf.Add("} else " + g.UpdateError(n.Value.(string)) + "\n")
+			t.cf.Add("}\n")
 		}
-		t.cf.Add("if !accept {\n\tp.ParserData.Pos = save\n}\n")
+		t.cf.Add("if !accept {\n")
+		t.cf.Inc()
+		t.cf.Add(g.UpdateError("TODO") + "\np.ParserData.Pos = save\n")
+		t.cf.Dec()
+		t.cf.Add("}\n")
 		t.cf.Dec()
 		t.cf.Add("}")
 		return t.cf.String()
@@ -443,7 +474,7 @@ func (g *GoGenerator) Call(value string) string {
 
 func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	g.s = s
-	imports := "\n\nimport (\n\t. \"parser\"\n"
+	imports := "\n\nimport (\n\t\"bytes\"\n\t. \"parser\"\n"
 	impList := g.Imports
 	if g.AddDebugLogging {
 		impList = append(impList, "log")
@@ -482,7 +513,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 	members := g.ParserVariables
 	members = append(members, `ParserData struct {
 		Pos  int
-		Data []rune
+		Data []byte
 	}
 `, "IgnoreRange Range",
 		"Root        Node",
@@ -497,7 +528,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 }
 
 func (p *` + g.s.Name + `) Parse(data string) bool {
-	p.ParserData.Data = ([]rune)(data)
+	p.ParserData.Data = ([]byte)(data)
 
 	p.ParserData.Pos = 0
 	p.Root = Node{Name: "` + g.s.Name + `"}
@@ -543,7 +574,13 @@ func (p *` + g.s.Name + `) Error() Error {
 	if p.LastError == len(p.ParserData.Data) {
 		errstr = "Unexpected EOF"
 	} else {
-		r := p.ParserData.Data[p.LastError]
+		e := p.LastError + 4
+		if e > len(p.ParserData.Data) {
+			e = len(p.ParserData.Data)
+		}
+
+		reader := bytes.NewReader(p.ParserData.Data[p.LastError:e])
+		r, _, _ := reader.ReadRune()
 		if r == '\r' || r == '\n' {
 			errstr = "Unexpected new line"
 		} else {

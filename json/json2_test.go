@@ -156,10 +156,10 @@ true, false, true, true, null, false
 	28-28: "EndOfFile" - Data: ""
 `,
 	`["€þıœəßð some utf-8 ĸʒ×ŋµåäö𝄞"]
-`: `0-33: "JSON"
-	0-32: "Array"
-		2-30: "Text" - Data: "€þıœəßð some utf-8 ĸʒ×ŋµåäö𝄞"
-	33-33: "EndOfFile" - Data: ""
+`: `0-52: "JSON"
+	0-51: "Array"
+		2-49: "Text" - Data: "€þıœəßð some utf-8 ĸʒ×ŋµåäö𝄞"
+	52-52: "EndOfFile" - Data: ""
 `,
 	`[1]
 `: `0-4: "JSON"
@@ -332,18 +332,21 @@ func TestParserComprehensive(t *testing.T) {
 		if p.Parse(k) != true {
 			t.Fatalf("Didn't parse correctly: %s", k)
 		} else if p.RootNode().String() != v {
-			t.Fatalf("Test %s failed\nExpected: %s\nReceived, %s", k, v, p.RootNode())
+			t.Logf("Test %s failed\nExpected: %s\nReceived, %s", k, v, p.RootNode())
+			t.Fail()
 		}
 	}
 	for k, v := range invalid {
 		if p.Parse(k) {
 			root := p.RootNode()
 			if root.Children[len(root.Children)-1].Name == "EndOfFile" {
-				t.Fatalf("Succeeded, but shouldn't have: %s", k)
+				t.Logf("Succeeded, but shouldn't have: %s", k)
+				t.Fail()
 			}
 		}
 		if p.Error().String() != v {
-			t.Fatalf("Test %s failed\nExpected: %s\nReceived, %s", k, v, p.Error().String())
+			t.Logf("Test %s failed\nExpected: %s\nReceived, %s", k, v, p.Error().String())
+			t.Fail()
 		}
 	}
 }

@@ -59,17 +59,16 @@ type Node struct {
 	P        DataSource
 }
 
-func (n *Node) format(cf *CodeFormatter) {
+func (n *Node) format(indent string) string {
 	if len(n.Children) == 0 {
-		cf.Add(fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data()))
-	} else {
-		cf.Add(fmt.Sprintf("%d-%d: \"%s\"\n", n.Range.Start, n.Range.End, n.Name))
-		cf.Inc()
-		for _, child := range n.Children {
-			child.format(cf)
-		}
-		cf.Dec()
+		return indent + fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data())
 	}
+	ret := indent + fmt.Sprintf("%d-%d: \"%s\"\n", n.Range.Start, n.Range.End, n.Name)
+	indent += "\t"
+	for _, child := range n.Children {
+		ret += child.format(indent)
+	}
+	return ret
 }
 
 func (n *Node) Data() string {
@@ -77,9 +76,7 @@ func (n *Node) Data() string {
 }
 
 func (n *Node) String() string {
-	cf := CodeFormatter{}
-	n.format(&cf)
-	return cf.String()
+	return n.format("")
 }
 
 func (n *Node) Discard(pos int) {

@@ -88,7 +88,7 @@ func main() {
 			var gen parser.Generator
 			switch generator {
 			case "go":
-				gen = &parser.GoGenerator{}
+				gen = &parser.GoGenerator{RootNode: p.RootNode()}
 			case "c":
 				gen = &parser.CGenerator{}
 			case "cpp":

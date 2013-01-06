@@ -276,7 +276,7 @@ func (g *CGenerator) ZeroOrMore(a string) string {
 	var cf CodeFormatter
 	cf.Add("{\n")
 	cf.Inc()
-	cf.Add(g.Call(a))
+	cf.Add("accept = TRUE;")
 	cf.Add("\nwhile (accept) {\n")
 	cf.Inc()
 	cf.Add(g.Call(a))
@@ -368,9 +368,13 @@ func (g *CGenerator) EndGroup(gr Group) string {
 
 		for n := t.stack.Back(); len(t.cf.Level()) > 1; n = n.Prev() {
 			t.cf.Dec()
-			t.cf.Add("} else " + g.UpdateError(n.Value.(string)) + "\n")
+			t.cf.Add("}\n")
 		}
-		t.cf.Add("if (!accept) {\n\tp->parserData.pos = save;\n}\n")
+		t.cf.Add("if (!accept) {\n")
+		t.cf.Inc()
+		t.cf.Add(g.UpdateError("TODO") + "\np->parserData.pos = save;\n")
+		t.cf.Dec()
+		t.cf.Add("}\n")
 		t.cf.Dec()
 		t.cf.Add("}")
 		return t.cf.String()

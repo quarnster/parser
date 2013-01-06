@@ -1,11 +1,11 @@
 JsonFile       <-    Values EndOfFile?
-Values         <-    Spacing* Value Spacing* (',' Spacing* Value Spacing*)*
+Values         <-    Spacing? Value Spacing? (',' Spacing? Value Spacing?)*
 Value          <-    (Dictionary / Array / QuotedText / Float / Integer / Boolean / Null)
 Null           <-    "null"
 Dictionary     <-    '{' KeyValuePairs* '}'
 Array          <-    '[' Values* ']'
-KeyValuePairs  <-    Spacing* KeyValuePair Spacing* (',' Spacing* KeyValuePair Spacing*)*
-KeyValuePair   <-    QuotedText ':' Spacing* Value
+KeyValuePairs  <-    Spacing? KeyValuePair Spacing? (',' Spacing? KeyValuePair Spacing?)*
+KeyValuePair   <-    QuotedText ':' Spacing? Value
 QuotedText     <-    '"' Text? '"'
 Text           <-    &'"' / ('\\' . / (!'"' .))+
 Integer        <-    '-'? '0' ![0-9] / '-'? [1-9] [0-9]*
