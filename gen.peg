@@ -1,0 +1,87 @@
+TranslationUnit             <-      (Spacing / Class / FunctionDeclaration / VariableDeclaration)+ Spacing? EndOfFile?
+
+InnerBlock                  <-      (Spacing / If / While / For / ReturnStatement / NewStatement / DeleteStatement / PlusEquals / Assignment / VariableDeclaration / Statement)+
+
+Class                       <-      "class" Spacing Identifier Spacing? '{'  (Spacing / Constructor / Destructor / FunctionDeclaration / VariableDeclaration)+ Spacing? '}'
+
+Type                        <-      (BooleanType / IntegerType / FloatType / StringType / CharType / ClassType) Pointer? Array?
+
+BooleanType                 <-      "bool"
+IntegerType                 <-      "int"
+FloatType                   <-      "float"
+CharType                    <-      "char"
+StringType                  <-      "string"
+ClassType                   <-      Identifier
+
+VariableDeclaration         <-      Type Spacing (Assignment / Identifier)
+FunctionDeclaration         <-      Type Spacing FunctionDeclarationCore
+FunctionDeclarationCore     <-      Identifier '(' Spacing? (VariableDeclaration Spacing ? (',' Spacing? VariableDeclaration)*)? Spacing? ')' Block
+
+Constructor                 <-      FunctionDeclarationCore
+Destructor                  <-      '~' Identifier "()" Block
+
+QuotedText                  <-      '"' Text '"'
+Text                        <-      ('\\' . / (!'"' .))+
+Identifier                  <-      [A-Za-z_] [A-Za-z_0-9]*
+
+Assignment                  <-      MemberId Spacing? '=' Statement
+PlusEquals                  <-      MemberId Spacing? "+=" Statement
+
+While                       <-      "while" Condition Block
+For                         <-      "for" Spacing Identifier Spacing "in" Spacing Expression Spacing? Block
+
+If                          <-      "if" Condition Block (ElseIf / Else)*
+ElseIf                      <-      "else" Spacing If
+Else                        <-      "else" Block
+
+ArraySlicing                <-      Identifier '[' Expression? colon Expression? ']'
+ArrayIndexing               <-      Identifier '[' Expression ']'
+FunctionCall                <-      Identifier '(' (Expression (',' Expression)*)? ')'
+
+MemberId                    <-      Identifier (MemberAccess Identifier)*
+MemberAccess                <-      '.'
+Expression                  <-      PostInc / PostDec / Exp
+Exp                         <-      Spacing? not? ExpressionSub (MemberAccess ExpressionSub)* Spacing?
+ExpressionSub               <-      Boolean / Float / Integer / QuotedText / ArraySlicing / ArrayIndexing / FunctionCall / Identifier
+PostInc                     <-      Exp "++"
+PostDec                     <-      Exp "--"
+
+BreakStatement              <-      "break"
+NewStatement                <-      "new" Spacing Statement
+DeleteStatement             <-      "delete" Spacing Statement
+ReturnStatement             <-      "return" Spacing Statement
+OpStatement                 <-      Expression (plus / minus) Expression
+
+Block                       <-      Spacing? '{' InnerBlock '}' Spacing?
+
+Condition                   <-      SubCond and SubCond / SubCond or SubCond / SubCond
+SubCond                     <-      Comparison / Expression
+Comparison                  <-      Expression (ge / le / eq / ne / lt / gt) Expression
+
+Pointer                     <-      '*'
+Array                       <-      "[]"
+minus                       <-      '-'
+plus                        <-      '+'
+eq                          <-      "=="
+ne                          <-      "!="
+gt                          <-      '>'
+lt                          <-      '<'
+ge                          <-      ">="
+le                          <-      "<="
+
+colon                       <-      ':'
+and                         <-      "&&"
+or                          <-      "||"
+not                         <-      "!"
+EndOfLine                   <-      "\n\r" / '\n' / '\r'
+
+Boolean                     <-      "true" / "false"
+Float                       <-      '-'? [0-9]+ '.' + [0-9]+
+Integer                     <-      '-'? [0-9]+
+
+LineComment                 <-      "//" ((('\\' EndOfLine) / (!EndOfLine .)))+ EndOfLine
+BlockComment                <-      "/*" (!"*/" .)+ "*/"
+Comment                     <-      LineComment / BlockComment
+Statement                   <-      ReturnStatement / NewStatement / DeleteStatement / BreakStatement / OpStatement / Expression
+Spacing                     <-      ([ \t\n\r]+ / Comment+)+
+EndOfFile                   <-      !.
