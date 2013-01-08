@@ -5,47 +5,53 @@ import (
 	"strings"
 )
 
-type Compiler struct {
+type PyCompiler struct {
 	currentClass    string
 	currentFunction string
 	header          string
 	source          string
 }
 
-func (c *Compiler) ResolveType(node *parser.Node) string {
+func (c *PyCompiler) ResolveType(node *parser.Node) string {
 	if node.Name != "Type" {
 		panic(node)
 	}
 	return node.Data()
 }
 
-var primitives = map[string]string{
+var pyprimitives = map[string]string{
 	"ge":             " >= ",
 	"le":             " <= ",
 	"eq":             " == ",
 	"ne":             " != ",
 	"lt":             " < ",
 	"gt":             " > ",
-	"and":            " && ",
-	"or":             " || ",
+	"and":            " and ",
+	"or":             " or ",
 	"plus":           " + ",
 	"minus":          " - ",
-	"not":            "!",
+	"not":            "not ",
 	"MemberAccess":   ".",
 	"BreakStatement": "break",
 }
 
-func (c *Compiler) Recurse(node *parser.Node) string {
+func (c *PyCompiler) Recurse(node *parser.Node) string {
 	ret := ""
 	var cf parser.CodeFormatter
-	p := primitives[node.Name]
+	p := pyprimitives[node.Name]
 	if p != "" {
 		return p
 	}
 
 	switch node.Name {
-	case "Identifier", "Boolean", "Float", "Integer":
+	case "Identifier", "Float", "Integer":
 		return node.Data()
+	case "Boolean":
+		if node.Data() == "true" {
+			return "True"
+		} else {
+			return "False"
+		}
 	case "Text":
 		return "\"" + node.Data() + "\""
 	case "Comparison":
@@ -54,34 +60,29 @@ func (c *Compiler) Recurse(node *parser.Node) string {
 		b := c.Recurse(node.Children[2])
 		return a + cmp + b
 	case "While":
-		return "while (" + c.Recurse(node.Children[0]) + ")\n" + c.Recurse(node.Children[1])
+		return "while " + c.Recurse(node.Children[0]) + ":\n" + c.Recurse(node.Children[1])
 	case "If":
-		return "if (" + c.Recurse(node.Children[0]) + ")\n" + c.Recurse(node.Children[1])
+		return "if " + c.Recurse(node.Children[0]) + ":\n" + c.Recurse(node.Children[1])
 	case "ElseIf":
-		ret += "else "
+		return "el" + c.Recurse(node.Children[0])
 	case "Else":
-		ret += "else\n"
+		return "else:" + c.Recurse(node.Children[0])
 	case "For":
 		variable := c.Recurse(node.Children[0])
 		array := c.Recurse(node.Children[1])
 		block := c.Recurse(node.Children[2])
 
-		typeName := "TODO"
-
-		ret := "for (int i = 0; i < " + array + ".size(); i++)\n{\n\t"
-		ret += typeName + " " + variable + " = " + array + "[i];\n"
-		ret += block[2:]
-		return ret
+		return "for " + variable + " in " + array + ":\n" + block
 	case "NewStatement":
-		return "new " + c.Recurse(node.Children[0])
+		return c.Recurse(node.Children[0]) + "()"
 	case "ReturnStatement":
 		return "return " + c.Recurse(node.Children[0])
 	case "ArrayIndexing":
 		return c.Recurse(node.Children[0]) + "[" + c.Recurse(node.Children[1]) + "]"
 	case "ArraySlicing":
 		id := c.Recurse(node.Children[0])
-		a := "0"
-		b := id + ".size()"
+		a := ""
+		b := ""
 		if node.Children[1].Name != "colon" {
 			a = c.Recurse(node.Children[1])
 		}
@@ -89,11 +90,11 @@ func (c *Compiler) Recurse(node *parser.Node) string {
 		if back.Name != "colon" {
 			b = c.Recurse(back)
 		}
-		return id + ".slice(" + a + ", " + b + ")"
+		return id + "[" + a + ":" + b + "]"
 	case "PostInc":
-		return c.Recurse(node.Children[0]) + "++"
+		return c.Recurse(node.Children[0]) + " += 1"
 	case "PostDec":
-		return c.Recurse(node.Children[0]) + "--"
+		return c.Recurse(node.Children[0]) + " -= 1"
 	case "FunctionCall":
 		ret = node.Children[0].Data()
 		args := ""
@@ -108,17 +109,18 @@ func (c *Compiler) Recurse(node *parser.Node) string {
 	case "Class":
 		cn := node.Children[0].Data()
 		c.currentClass = cn
-		cf.Add("class " + cn + "\n{\npublic:\n")
+		cf.Add("class " + cn + ":\n")
+
 		cf.Inc()
 		for _, child := range node.Children[1:] {
 			ret := c.Recurse(child)
 			if child.Name == "VariableDeclaration" {
-				ret += ";\n"
+				ret += "\n"
 			}
 			cf.Add(ret)
 		}
 		cf.Dec()
-		cf.Add("};\n")
+		cf.Add("\n")
 		c.currentClass = ""
 		return cf.String()
 	case "Assignment":
@@ -126,7 +128,7 @@ func (c *Compiler) Recurse(node *parser.Node) string {
 	case "PlusEquals":
 		return node.Children[0].Data() + " += " + c.Recurse(node.Children[1])
 	case "VariableDeclaration":
-		ret := c.ResolveType(node.Children[0]) + " "
+		ret := "" //c.ResolveType(node.Children[0]) + " "
 		n1 := node.Children[1]
 		if n1.Name == "Assignment" {
 			ret += c.Recurse(n1)
@@ -135,34 +137,36 @@ func (c *Compiler) Recurse(node *parser.Node) string {
 		}
 		return ret
 	case "Block":
-		cf.Add("{\n")
 		cf.Inc()
+		cf.Add("\t")
 		for _, child := range node.Children {
 			r := c.Recurse(child)
-			if !strings.HasSuffix(r, "}\n") {
-				r += ";\n"
+			if !strings.HasSuffix(r, "\n") {
+				r += "\n"
 			}
 			cf.Add(r)
 		}
 		cf.Dec()
-		cf.Add("}\n")
 		return cf.String()
 	case "Destructor":
 		c.currentFunction = node.Children[0].Data()
-		ret := "~" + c.currentFunction
+		ret := "def __del__(self):\n"
 		c.currentFunction = ""
-		return ret + "()\n" + c.Recurse(node.Children[1])
+		return ret + "" + c.Recurse(node.Children[1])
 	case "FunctionDeclaration":
 		c.currentFunction = node.Children[1].Data()
-		ret := c.ResolveType(node.Children[0]) + " " + c.currentFunction + "("
+		ret := "def " + c.currentFunction + "("
 		args := ""
+		if c.currentClass != "" {
+			args += "self"
+		}
 		for _, child := range node.Children[2 : len(node.Children)-1] {
 			if args != "" {
 				args += ", "
 			}
 			args += c.Recurse(child)
 		}
-		ret += args + ")\n"
+		ret += args + "):\n"
 		ret += c.Recurse(node.Children[len(node.Children)-1])
 		c.currentFunction = ""
 		return ret

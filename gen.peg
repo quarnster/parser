@@ -24,7 +24,7 @@ QuotedText                  <-      '"' Text '"'
 Text                        <-      ('\\' . / (!'"' .))+
 Identifier                  <-      [A-Za-z_] [A-Za-z_0-9]*
 
-Assignment                  <-      MemberId Spacing? '=' Statement
+Assignment                  <-      MemberId Spacing? '=' Spacing? Statement
 PlusEquals                  <-      MemberId Spacing? "+=" Statement
 
 While                       <-      "while" Condition Block
@@ -47,7 +47,7 @@ PostInc                     <-      Exp "++"
 PostDec                     <-      Exp "--"
 
 BreakStatement              <-      "break"
-NewStatement                <-      "new" Spacing Statement
+NewStatement                <-      "new" Spacing Type
 DeleteStatement             <-      "delete" Spacing Statement
 ReturnStatement             <-      "return" Spacing Statement
 OpStatement                 <-      Expression (plus / minus) Expression
