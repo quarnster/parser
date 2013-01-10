@@ -1,0 +1,125 @@
+class Range {
+    int start
+    int end
+
+    void Clip(Range other)
+    {
+        if start >= other.start && start < other.end {
+            start = other.end
+        }
+        if end >= other.start && end <= other.end {
+            end = other.start
+        }
+        if end < start {
+            end = start
+        }
+    }
+    void Reset() {
+        start = 0
+        end = 0
+    }
+}
+
+class Node {
+    string Name
+    Range Range
+    Node*[] Children
+
+    ~Node() {
+        for child in Children {
+            delete child
+        }
+        Children = Children[:0]
+    }
+
+    void format(string indent, Parser p) {
+        if Children.length == 0 {
+            return indent + sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", Range.Start, Range.End, Name, p.Data(Range.Start, Range.End))
+        }
+        string ret = indent + sprintf("%d-%d: \"%s\"\n", Range.Start, Range.End, Name)
+        indent += "\t"
+        for child in Children {
+            ret += child.format(indent, p)
+        }
+        return ret
+    }
+
+    void Append(Node* other) {
+        Children.append(other)
+    }
+
+    Node* Cleanup(int pos, int end) {
+        Node* popped = new Node
+        popped.Range = Range(pos, end)
+        int back = Children.length
+        int popIdx = 0
+        if pos == 0 {
+            pos = -1
+        }
+
+        i = back-1
+        while i >= 0 {
+            node = Children[i]
+            if node.Range.End <= pos {
+                popIdx = i + 1
+                break
+            }
+            i--
+        }
+
+        popped.Children = Children[popIdx:back]
+        if popIdx != back {
+            Children = Children[:popIdx]
+        }
+        return popped
+    }
+
+    void Discard(int pos) {
+        i = Children.length - 1
+        while i >= 0 {
+            if Children[i].Range.End <= pos {
+                break
+            }
+            delete Children.pop()
+            i--
+        }
+    }
+}
+
+bool AddNode() {
+    accept = true
+    int start = ParserPos.Pos
+    accept = arne()
+    int end = ParserPos.Pos
+    if accept {
+        node = Root.Cleanup(start, end)
+        node.Name = "Weise"
+        node.P = p
+        node.Range.Clip(IgnoreRange)
+        Root.Append(node)
+    } else {
+        Root.Discard(start)
+    }
+    return accept
+}
+
+bool Ignore() {
+    accept = true
+    start = ParserData.Pos
+    accept = arne()
+    if accept && start != ParserData.Pos {
+        if start < IgnoreRange.Start || IgnoreRange.Start == 0 {
+            IgnoreRange.Start = start
+        }
+        IgnoreRange.End = ParserData.Pos
+    }
+}
+
+bool CheckNext(char c) {
+    if ParserData.Pos >= ParserData.Data.length || ParserData.Data[ParserData.Pos] != c {
+        accept = false
+    } else {
+        parserData.pos++
+        accept = true
+    }
+}

@@ -27,10 +27,10 @@ Identifier                  <-      [A-Za-z_] [A-Za-z_0-9]*
 Assignment                  <-      MemberId Spacing? '=' Spacing? Statement
 PlusEquals                  <-      MemberId Spacing? "+=" Statement
 
-While                       <-      "while" Condition Block
+While                       <-      "while" BooleanExpression Block
 For                         <-      "for" Spacing Identifier Spacing "in" Spacing Expression Spacing? Block
 
-If                          <-      "if" Condition Block (ElseIf / Else)*
+If                          <-      "if" BooleanExpression Block (ElseIf / Else)*
 ElseIf                      <-      "else" Spacing If
 Else                        <-      "else" Block
 
@@ -54,8 +54,8 @@ OpStatement                 <-      Expression (plus / minus) Expression
 
 Block                       <-      Spacing? '{' InnerBlock '}' Spacing?
 
-Condition                   <-      SubCond and SubCond / SubCond or SubCond / SubCond
-SubCond                     <-      Comparison / Expression
+BooleanExpression           <-      BooleanSubExpression ((and / or) BooleanSubExpression)*
+BooleanSubExpression        <-      Spacing? (Comparison / Boolean / Identifier) Spacing?
 Comparison                  <-      Expression (ge / le / eq / ne / lt / gt) Expression
 
 Pointer                     <-      '*'
