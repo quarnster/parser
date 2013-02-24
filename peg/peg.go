@@ -27,7 +27,7 @@ package peg
 
 import (
 	"bytes"
-	. "parser"
+	. "github.com/quarnster/parser"
 )
 
 type Peg struct {
@@ -49,7 +49,7 @@ func (p *Peg) Parse(data string) bool {
 	p.ParserData.Data = ([]byte)(data)
 
 	p.ParserData.Pos = 0
-	p.Root = Node{Name: "Peg", P:p}
+	p.Root = Node{Name: "Peg", P: p}
 	p.IgnoreRange = Range{}
 	p.LastError = 0
 	ret := p.realParse()

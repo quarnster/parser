@@ -27,12 +27,12 @@ package main
 
 import (
 	"flag"
+	"github.com/quarnster/parser"
+	"github.com/quarnster/parser/peg"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
-	"parser"
-	"parser/peg"
 	"path/filepath"
 	"strings"
 )

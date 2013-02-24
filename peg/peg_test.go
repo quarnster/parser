@@ -2,10 +2,10 @@ package peg
 
 import (
 	"bytes"
+	"github.com/quarnster/parser"
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"parser"
 	"strings"
 	"testing"
 )

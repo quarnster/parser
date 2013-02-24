@@ -460,7 +460,7 @@ func (g *GoGenerator) Call(value string) string {
 
 func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	g.s = s
-	imports := "\n\nimport (\n\t\"bytes\"\n\t. \"parser\"\n"
+	imports := "\n\nimport (\n\t\"bytes\"\n\t. \"github.com/quarnster/parser\"\n"
 	impList := g.Imports
 	if g.AddDebugLogging {
 		impList = append(impList, "log")
