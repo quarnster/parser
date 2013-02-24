@@ -517,7 +517,7 @@ func (p *` + g.s.Name + `) Parse(data string) bool {
 	p.ParserData.Data = ([]byte)(data)
 
 	p.ParserData.Pos = 0
-	p.Root = Node{Name: "` + g.s.Name + `", P:p}
+	p.Root = Node{Name: "` + g.s.Name + `", P: p}
 	p.IgnoreRange = Range{}
 	p.LastError = 0
 	ret := p.realParse()
