@@ -251,16 +251,21 @@ func p_Expression(p *Peg) bool {
 }
 
 func p_Sequence(p *Peg) bool {
-	// Sequence      <- Prefix*
+	// Sequence      <- Prefix+
 	accept := false
 	accept = true
 	start := p.ParserData.Pos
 	{
-		accept = true
-		for accept {
-			accept = p_Prefix(p)
+		save := p.ParserData.Pos
+		accept = p_Prefix(p)
+		if !accept {
+			p.ParserData.Pos = save
+		} else {
+			for accept {
+				accept = p_Prefix(p)
+			}
+			accept = true
 		}
-		accept = true
 	}
 	end := p.ParserData.Pos
 	if accept {
@@ -580,8 +585,8 @@ func p_IdentCont(p *Peg) bool {
 }
 
 func p_Literal(p *Peg) bool {
-	// Literal       <- ['] (!['] Char)* ['] Spacing
-	//                / ["] (!["] Char)* ["] Spacing
+	// Literal       <- '\'' (!'\'' Char) '\'' Spacing
+	//                / '"' (!'"' Char)+ '"' Spacing
 	accept := false
 	accept = true
 	start := p.ParserData.Pos
@@ -589,60 +594,42 @@ func p_Literal(p *Peg) bool {
 		save := p.ParserData.Pos
 		{
 			save := p.ParserData.Pos
-			{
+			if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\'' {
 				accept = false
-				if p.ParserData.Pos < len(p.ParserData.Data) {
-					c := p.ParserData.Data[p.ParserData.Pos]
-					if c == '\'' {
-						p.ParserData.Pos++
-						accept = true
-					}
-				}
+			} else {
+				p.ParserData.Pos++
+				accept = true
 			}
 			if accept {
 				{
-					accept = true
-					for accept {
-						{
-							save := p.ParserData.Pos
-							s := p.ParserData.Pos
-							{
-								accept = false
-								if p.ParserData.Pos < len(p.ParserData.Data) {
-									c := p.ParserData.Data[p.ParserData.Pos]
-									if c == '\'' {
-										p.ParserData.Pos++
-										accept = true
-									}
-								}
-							}
-							p.ParserData.Pos = s
-							accept = !accept
-							if accept {
-								accept = p_Char(p)
-								if accept {
-								}
-							}
-							if !accept {
-								if p.LastError < p.ParserData.Pos {
-									p.LastError = p.ParserData.Pos
-								}
-								p.ParserData.Pos = save
-							}
+					save := p.ParserData.Pos
+					s := p.ParserData.Pos
+					if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\'' {
+						accept = false
+					} else {
+						p.ParserData.Pos++
+						accept = true
+					}
+					p.ParserData.Pos = s
+					accept = !accept
+					if accept {
+						accept = p_Char(p)
+						if accept {
 						}
 					}
-					accept = true
+					if !accept {
+						if p.LastError < p.ParserData.Pos {
+							p.LastError = p.ParserData.Pos
+						}
+						p.ParserData.Pos = save
+					}
 				}
 				if accept {
-					{
+					if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\'' {
 						accept = false
-						if p.ParserData.Pos < len(p.ParserData.Data) {
-							c := p.ParserData.Data[p.ParserData.Pos]
-							if c == '\'' {
-								p.ParserData.Pos++
-								accept = true
-							}
-						}
+					} else {
+						p.ParserData.Pos++
+						accept = true
 					}
 					if accept {
 						accept = p_Spacing(p)
@@ -661,60 +648,75 @@ func p_Literal(p *Peg) bool {
 		if !accept {
 			{
 				save := p.ParserData.Pos
-				{
+				if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '"' {
 					accept = false
-					if p.ParserData.Pos < len(p.ParserData.Data) {
-						c := p.ParserData.Data[p.ParserData.Pos]
-						if c == '"' {
-							p.ParserData.Pos++
-							accept = true
-						}
-					}
+				} else {
+					p.ParserData.Pos++
+					accept = true
 				}
 				if accept {
 					{
-						accept = true
-						for accept {
-							{
-								save := p.ParserData.Pos
-								s := p.ParserData.Pos
-								{
-									accept = false
-									if p.ParserData.Pos < len(p.ParserData.Data) {
-										c := p.ParserData.Data[p.ParserData.Pos]
-										if c == '"' {
-											p.ParserData.Pos++
-											accept = true
-										}
-									}
-								}
-								p.ParserData.Pos = s
-								accept = !accept
+						save := p.ParserData.Pos
+						{
+							save := p.ParserData.Pos
+							s := p.ParserData.Pos
+							if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '"' {
+								accept = false
+							} else {
+								p.ParserData.Pos++
+								accept = true
+							}
+							p.ParserData.Pos = s
+							accept = !accept
+							if accept {
+								accept = p_Char(p)
 								if accept {
-									accept = p_Char(p)
-									if accept {
-									}
 								}
-								if !accept {
-									if p.LastError < p.ParserData.Pos {
-										p.LastError = p.ParserData.Pos
-									}
-									p.ParserData.Pos = save
+							}
+							if !accept {
+								if p.LastError < p.ParserData.Pos {
+									p.LastError = p.ParserData.Pos
 								}
+								p.ParserData.Pos = save
 							}
 						}
-						accept = true
-					}
-					if accept {
-						{
-							accept = false
-							if p.ParserData.Pos < len(p.ParserData.Data) {
-								c := p.ParserData.Data[p.ParserData.Pos]
-								if c == '"' {
-									p.ParserData.Pos++
-									accept = true
+						if !accept {
+							p.ParserData.Pos = save
+						} else {
+							for accept {
+								{
+									save := p.ParserData.Pos
+									s := p.ParserData.Pos
+									if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '"' {
+										accept = false
+									} else {
+										p.ParserData.Pos++
+										accept = true
+									}
+									p.ParserData.Pos = s
+									accept = !accept
+									if accept {
+										accept = p_Char(p)
+										if accept {
+										}
+									}
+									if !accept {
+										if p.LastError < p.ParserData.Pos {
+											p.LastError = p.ParserData.Pos
+										}
+										p.ParserData.Pos = save
+									}
 								}
 							}
+							accept = true
+						}
+					}
+					if accept {
+						if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '"' {
+							accept = false
+						} else {
+							p.ParserData.Pos++
+							accept = true
 						}
 						if accept {
 							accept = p_Spacing(p)
@@ -754,7 +756,7 @@ func p_Literal(p *Peg) bool {
 }
 
 func p_Class(p *Peg) bool {
-	// Class         <- '[' (!']' Range)* ']' Spacing
+	// Class         <- '[' (!']' Range)+ ']' Spacing
 	accept := false
 	accept = true
 	start := p.ParserData.Pos
@@ -768,33 +770,60 @@ func p_Class(p *Peg) bool {
 		}
 		if accept {
 			{
-				accept = true
-				for accept {
-					{
-						save := p.ParserData.Pos
-						s := p.ParserData.Pos
-						if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ']' {
-							accept = false
-						} else {
-							p.ParserData.Pos++
-							accept = true
-						}
-						p.ParserData.Pos = s
-						accept = !accept
+				save := p.ParserData.Pos
+				{
+					save := p.ParserData.Pos
+					s := p.ParserData.Pos
+					if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ']' {
+						accept = false
+					} else {
+						p.ParserData.Pos++
+						accept = true
+					}
+					p.ParserData.Pos = s
+					accept = !accept
+					if accept {
+						accept = p_Range(p)
 						if accept {
-							accept = p_Range(p)
-							if accept {
-							}
-						}
-						if !accept {
-							if p.LastError < p.ParserData.Pos {
-								p.LastError = p.ParserData.Pos
-							}
-							p.ParserData.Pos = save
 						}
 					}
+					if !accept {
+						if p.LastError < p.ParserData.Pos {
+							p.LastError = p.ParserData.Pos
+						}
+						p.ParserData.Pos = save
+					}
 				}
-				accept = true
+				if !accept {
+					p.ParserData.Pos = save
+				} else {
+					for accept {
+						{
+							save := p.ParserData.Pos
+							s := p.ParserData.Pos
+							if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ']' {
+								accept = false
+							} else {
+								p.ParserData.Pos++
+								accept = true
+							}
+							p.ParserData.Pos = s
+							accept = !accept
+							if accept {
+								accept = p_Range(p)
+								if accept {
+								}
+							}
+							if !accept {
+								if p.LastError < p.ParserData.Pos {
+									p.LastError = p.ParserData.Pos
+								}
+								p.ParserData.Pos = save
+							}
+						}
+					}
+					accept = true
+				}
 			}
 			if accept {
 				if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ']' {

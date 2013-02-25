@@ -4,7 +4,7 @@
 Grammar       <- Spacing Definition+ EndOfFile?
 Definition    <- Identifier LEFTARROW Expression
 Expression    <- Sequence (SLASH Sequence)*
-Sequence      <- Prefix*
+Sequence      <- Prefix+
 Prefix        <- (AND / NOT)? Suffix
 Suffix        <- Primary (QUESTION / STAR / PLUS)?
 Primary       <- Identifier !LEFTARROW
@@ -14,9 +14,9 @@ Primary       <- Identifier !LEFTARROW
 Identifier    <- IdentStart IdentCont* Spacing
 IdentStart    <- [a-zA-Z_]
 IdentCont     <- IdentStart / [0-9]
-Literal       <- ['] (!['] Char)* ['] Spacing
-               / ["] (!["] Char)* ["] Spacing
-Class         <- '[' (!']' Range)* ']' Spacing
+Literal       <- '\'' (!'\'' Char) '\'' Spacing
+               / '"' (!'"' Char)+ '"' Spacing
+Class         <- '[' (!']' Range)+ ']' Spacing
 Range         <- Char '-' Char / Char
 Char          <- '\\' [nrt'"\[\]\\]
                / '\\' [0-2][0-7][0-7]
