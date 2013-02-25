@@ -411,7 +411,7 @@ func (g *JavaGenerator) Begin(s GeneratorSettings) error {
 `, "Range ignoreRange = new Range();",
 		"Node Root = new Node();",
 		"int LastError;")
-	g.realOutput += `
+	g.realOutput += g.s.Header + `
 import java.io.*;
 
 class NodeContainer {

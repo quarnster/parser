@@ -108,7 +108,17 @@ func main() {
 			}
 			root += "/"
 			gen.SetCustomActions(customActions)
+
+			header := "// This file was generated with the following command:\n// ["
+			for i, a := range os.Args {
+				if i > 0 {
+					header += ", "
+				}
+				header += `"` + a + `"`
+			}
+			header += "]\n"
 			s := parser.GeneratorSettings{
+				Header:   header,
 				Name:     strings.ToTitle(name),
 				Testname: testfile,
 				Debug:    dumptree,

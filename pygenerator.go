@@ -360,7 +360,7 @@ func (g *PyGenerator) Call(value string) string {
 func (g *PyGenerator) Begin(s GeneratorSettings) error {
 	g.s = s
 
-	g.output = `
+	g.output = g.s.Header + `
 class Range:
 	def __init__(self, s=0, e=0):
 		self.Start = s

@@ -470,32 +470,7 @@ func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	}
 	imports += ")\n"
 
-	g.output = `/*
-Copyright (c) 2012-2013 Fredrik Ehnbom
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-		list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright notice,
-		this list of conditions and the following disclaimer in the documentation
-		and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-
-`
+	g.output = g.s.Header + "\n"
 	members := g.ParserVariables
 	members = append(members, `ParserData struct {
 		Pos  int
@@ -597,18 +572,62 @@ func (g *GoGenerator) Finish() error {
 		dumptree_s = "t.Log(\"\\n\"+root.String())"
 	}
 	test := `package ` + strings.ToLower(g.s.Name) + `
-		import (
-			"io/ioutil"
-			"log"
-			"testing"
-		)
+import (
+	"archive/zip"
+	"io/ioutil"
+	"net/http"
+	"testing"
+	"strings"
+)
+
 const testname = "` + g.s.Testname + `"
+
+func loadData(path string) (retdata string, err error) {
+	var data []byte
+	if strings.HasPrefix(path, "http://") {
+		p2 := strings.Replace(strings.Replace(path, "http://", "http_", -1), "/", "_", -1)
+		if retdata, err = loadData(p2); err != nil {
+			if res, err := http.Get(path); err != nil {
+				return "", err
+			} else {
+				defer res.Body.Close()
+				if data, err = ioutil.ReadAll(res.Body); err != nil {
+					return "", err
+				} else if err = ioutil.WriteFile(p2, data, 0644); err != nil {
+					return "", err
+				} else {
+					return loadData(p2)
+				}
+			}
+		} else {
+			return
+		}
+	} else if strings.HasSuffix(path, ".zip") {
+		if zf, err := zip.OpenReader(path); err != nil {
+			return "", err
+		} else {
+			defer zf.Close()
+			f, err := zf.File[0].Open()
+			if err != nil {
+				return "", err
+			}
+			defer f.Close()
+			if data, err = ioutil.ReadAll(f); err != nil {
+				return "", err
+			}
+		}
+	} else {
+		data, err = ioutil.ReadFile(path)
+	}
+	return string(data), err
+}
+
 func TestParser(t *testing.T) {
 	var p ` + g.s.Name + `
-	if data, err := ioutil.ReadFile(testname); err != nil {
-		log.Fatalf("%s", err)
+	if data, err := loadData(testname); err != nil {
+		t.Fatal(err)
 	} else {
-		if !p.Parse(string(data)) {
+		if !p.Parse(data) {
 			t.Fatalf("Didn't parse correctly: %s\n", p.Error())
 		} else {
 			root := p.RootNode()
@@ -622,17 +641,16 @@ func TestParser(t *testing.T) {
 
 func BenchmarkParser(b *testing.B) {
 	var p ` + g.s.Name + `
-	if data, err := ioutil.ReadFile(testname); err != nil {
-		b.Fatalf("%s", err)
+	if data, err := loadData(testname); err != nil {
+		b.Fatal(err)
 	} else {
-		d2 := string(data)
 		for i := 0; i < b.N; i++ {
-			p.Parse(d2)
+			p.Parse(data)
 		}
 	}
 }
 
-		`
+`
 	if err := g.s.WriteFile(ln+"_test.go", test); err != nil {
 		return err
 	}

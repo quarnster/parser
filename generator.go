@@ -66,6 +66,7 @@ func (i *CodeFormatter) String() string {
 }
 
 type GeneratorSettings struct {
+	Header    string
 	Debug     bool
 	Bench     bool
 	Testname  string
