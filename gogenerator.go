@@ -309,13 +309,15 @@ func (g *GoGenerator) AssertNot(a string) string {
 	return `s := p.ParserData.Pos
 ` + g.Call(a) + `
 p.ParserData.Pos = s
+p.Root.Discard(s)
 accept = !accept`
 }
 
 func (g *GoGenerator) AssertAnd(a string) string {
 	return `s := p.ParserData.Pos
 ` + g.Call(a) + `
-p.ParserData.Pos = s`
+p.ParserData.Pos = s
+p.Root.Discard(s)`
 }
 
 func (g *GoGenerator) ZeroOrMore(a string) string {

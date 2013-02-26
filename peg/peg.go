@@ -399,6 +399,7 @@ func p_Primary(p *Peg) bool {
 				s := p.ParserData.Pos
 				accept = p_LEFTARROW(p)
 				p.ParserData.Pos = s
+				p.Root.Discard(s)
 				accept = !accept
 				if accept {
 				}
@@ -611,6 +612,7 @@ func p_Literal(p *Peg) bool {
 						accept = true
 					}
 					p.ParserData.Pos = s
+					p.Root.Discard(s)
 					accept = !accept
 					if accept {
 						accept = p_Char(p)
@@ -667,6 +669,7 @@ func p_Literal(p *Peg) bool {
 								accept = true
 							}
 							p.ParserData.Pos = s
+							p.Root.Discard(s)
 							accept = !accept
 							if accept {
 								accept = p_Char(p)
@@ -694,6 +697,7 @@ func p_Literal(p *Peg) bool {
 										accept = true
 									}
 									p.ParserData.Pos = s
+									p.Root.Discard(s)
 									accept = !accept
 									if accept {
 										accept = p_Char(p)
@@ -781,6 +785,7 @@ func p_Class(p *Peg) bool {
 						accept = true
 					}
 					p.ParserData.Pos = s
+					p.Root.Discard(s)
 					accept = !accept
 					if accept {
 						accept = p_Range(p)
@@ -808,6 +813,7 @@ func p_Class(p *Peg) bool {
 								accept = true
 							}
 							p.ParserData.Pos = s
+							p.Root.Discard(s)
 							accept = !accept
 							if accept {
 								accept = p_Range(p)
@@ -1069,6 +1075,7 @@ func p_Char(p *Peg) bool {
 							accept = true
 						}
 						p.ParserData.Pos = s
+						p.Root.Discard(s)
 						accept = !accept
 						if accept {
 							if p.ParserData.Pos >= len(p.ParserData.Data) {
@@ -1557,6 +1564,7 @@ func p_Comment(p *Peg) bool {
 						s := p.ParserData.Pos
 						accept = p_EndOfLine(p)
 						p.ParserData.Pos = s
+						p.Root.Discard(s)
 						accept = !accept
 						if accept {
 							if p.ParserData.Pos >= len(p.ParserData.Data) {
@@ -1705,6 +1713,7 @@ func p_EndOfFile(p *Peg) bool {
 		accept = true
 	}
 	p.ParserData.Pos = s
+	p.Root.Discard(s)
 	accept = !accept
 	end := p.ParserData.Pos
 	if accept {
