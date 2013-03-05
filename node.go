@@ -80,9 +80,6 @@ func (n *Node) String() string {
 }
 
 func (n *Node) Discard(pos int) {
-	if pos == 0 {
-		return
-	}
 	back := len(n.Children)
 	popIdx := 0
 	for i := back - 1; i >= 0; i-- {

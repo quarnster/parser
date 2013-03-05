@@ -1,0 +1,10 @@
+Expression  <- Op EndOfFile
+Op          <- ShiftRight / ShiftLeft / Mask
+ShiftRight  <- Grouping ">>" Grouping
+ShiftLeft   <- Grouping "<<" Grouping
+Mask        <- Grouping "&" Grouping
+Grouping    <- Spacing? ('(' Op ')' / Constant / Identifier) Spacing?
+Identifier  <- [A-Z] [A-Za-z0-9]*
+Constant    <- "0x"? [0-9]+
+Spacing     <- [ \t\n\r]+
+EndOfFile   <- !.
