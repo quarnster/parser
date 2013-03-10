@@ -37,14 +37,18 @@ type DataSource interface {
 	Data(start, end int) string
 }
 
-func (r *Range) Clip(r2 Range) (clipped bool) {
-	if r.Start >= r2.Start && r.Start < r2.End {
-		clipped = true
-		r.Start = r2.End
+func (r *Range) Clip(ignore Range) (clipped bool) {
+	if r.Start >= ignore.Start && r.End <= ignore.End {
+		// this range is a subrange within the ignore range
+		return false
 	}
-	if r.End >= r2.Start && r.End <= r2.End {
+	if r.Start >= ignore.Start && r.Start < ignore.End {
 		clipped = true
-		r.End = r2.Start
+		r.Start = ignore.End
+	}
+	if r.End >= ignore.Start && r.End <= ignore.End {
+		clipped = true
+		r.End = ignore.Start
 	}
 	if r.End < r.Start {
 		r.End = r.Start
