@@ -47,3 +47,22 @@ func TestRangeClip(t *testing.T) {
 		}
 	}
 }
+
+type ds int
+
+func (s ds) Data(start, end int) string {
+	return ""
+}
+
+func TestNodeClone(t *testing.T) {
+	var s ds
+	n := Node{Name: "Test", P: s}
+	n.Children = append(n.Children, &Node{Name: "1", P: s}, &Node{Name: "2", P: s}, &Node{Name: "3", P: s})
+	n2 := n.Clone()
+	n2.Children[1].Children = append(n2.Children[1].Children, &Node{Name: "a", P: s})
+	if a, b := n.String(), n2.String(); a == b {
+		t.Error("Shouldn't be equal", a, b)
+	} else if a, b := n.String(), n.Clone().String(); a != b {
+		t.Error("Should be equal", a, b)
+	}
+}

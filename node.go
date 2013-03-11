@@ -133,6 +133,15 @@ func (n *Node) Cleanup(pos, end int) *Node {
 	return &popped
 }
 
+func (n *Node) Clone() *Node {
+	ret := *n
+	ret.Children = make([]*Node, len(n.Children))
+	for i := range n.Children {
+		ret.Children[i] = n.Children[i].Clone()
+	}
+	return &ret
+}
+
 func (n *Node) Append(child *Node) {
 	n.Children = append(n.Children, child)
 }
