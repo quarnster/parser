@@ -45,6 +45,7 @@ func main() {
 		debug     = false
 		dumptree  = false
 		notest    = false
+		heatmap   = false
 		ignore    = ""
 		generator = "go"
 	)
@@ -55,6 +56,7 @@ func main() {
 	flag.BoolVar(&debug, "debug", debug, "Whether to make the generated parser spit out debug info")
 	flag.BoolVar(&dumptree, "dumptree", dumptree, "Whether to make the generated parser spit out the generated tree")
 	flag.BoolVar(&notest, "notest", notest, "Whether to test the generated parser")
+	flag.BoolVar(&heatmap, "heatmap", heatmap, "Whether to generate a heatmap or not")
 	flag.StringVar(&generator, "generator", generator, "Which generator to use")
 	flag.Parse()
 	if pegfile == "" || testfile == "" {
@@ -123,6 +125,7 @@ func main() {
 				Testname: testfile,
 				Debug:    dumptree,
 				Bench:    bench,
+				Heatmap:  heatmap,
 				WriteFile: func(name, data string) error {
 					if err := os.Mkdir(root, 0755); err != nil && !os.IsExist(err) {
 						return err

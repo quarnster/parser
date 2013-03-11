@@ -43,18 +43,24 @@ type CodeFormatter struct {
 func (i *CodeFormatter) Level() string {
 	return i.level
 }
-func (i *CodeFormatter) Inc() {
+func (i *CodeFormatter) Inc(data ...string) {
 	i.level += "\t"
 	l := len(i.data)
 	if l > 0 && (i.data[l-1] == '\t' || i.data[l-1] == '\n') {
 		i.data += "\t"
 	}
+	for idx := range data {
+		i.Add(data[idx])
+	}
 }
-func (i *CodeFormatter) Dec() {
+func (i *CodeFormatter) Dec(data ...string) {
 	i.level = i.level[:len(i.level)-1]
 	l := len(i.data)
 	if l > 0 && i.data[l-1] == '\t' {
 		i.data = i.data[:l-1]
+	}
+	for idx := range data {
+		i.Add(data[idx])
 	}
 }
 func (i *CodeFormatter) Add(add string) {
@@ -72,6 +78,7 @@ type GeneratorSettings struct {
 	Testname  string
 	Name      string
 	WriteFile func(name, data string) error
+	Heatmap   bool
 }
 
 type Group interface {

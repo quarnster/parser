@@ -114,6 +114,24 @@ func (g *GoGenerator) MakeParserFunction(node *Node) error {
 	indenter.Add("func p_" + defName + "(p *" + g.s.Name + ") bool {\n")
 	indenter.Inc()
 	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
+	if g.s.Heatmap {
+		indenter.Add(`
+key := fmt.Sprintf("` + defName + `-%d", p.ParserData.Pos)
+hs := time.Now()
+ov := p.Heatmap["` + defName + `"]
+defer func() {
+	dur := time.Since(hs)
+	v := p.Heatmap[key]
+	v.Calls++
+	v.Time += dur
+	p.Heatmap[key] = v
+	v = p.Heatmap["` + defName + `"]
+	v.Calls++
+	v.Time = ov.Time + dur
+	p.Heatmap["` + defName + `"] = v
+}()
+`)
+	}
 
 	defaultAction := true
 	for i := range g.CustomActions {
@@ -464,6 +482,11 @@ func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	g.s = s
 	imports := "\n\nimport (\n\t\"bytes\"\n\t. \"github.com/quarnster/parser\"\n"
 	impList := g.Imports
+	members := g.ParserVariables
+	if g.s.Heatmap {
+		members = append(members, "Heatmap map[string]Heat")
+		impList = append(impList, "fmt", "time", "sort")
+	}
 	if g.AddDebugLogging {
 		impList = append(impList, "log")
 	}
@@ -473,7 +496,6 @@ func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	imports += ")\n"
 
 	g.output = g.s.Header + "\n"
-	members := g.ParserVariables
 	members = append(members, `ParserData struct {
 		Pos  int
 		Data []byte
@@ -486,14 +508,53 @@ func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	if g.AddDebugLogging {
 		g.output += "var fm CodeFormatter\n\n"
 	}
+	if g.s.Heatmap {
+		g.output += `type Heat struct {
+	Name string
+	Calls int
+	Time time.Duration
+}
+
+type TotHeat struct {
+	Heat []Heat
+}
+
+func (t *TotHeat) Len() int {
+	return len(t.Heat)
+}
+
+func (t *TotHeat) Less(i, j int) bool {
+	return t.Heat[i].Time >= t.Heat[j].Time
+}
+
+func (t *TotHeat) Swap(i, j int) {
+	t.Heat[i], t.Heat[j] = t.Heat[j], t.Heat[i]
+}
+
+func (t *TotHeat) Add(h Heat) {
+	t.Heat = append(t.Heat, h)
+}
+
+func (t *TotHeat) String() (ret string) {
+	sort.Sort(t)
+	for _, h := range t.Heat {
+		ret += fmt.Sprintf("%v\n", h)
+	}
+	return ret
+}
+`
+	}
 	g.output += `func (p *` + g.s.Name + `) RootNode() *Node {
 	return &p.Root
 }
 
 func (p *` + g.s.Name + `) Parse(data string) bool {
 	p.ParserData.Data = ([]byte)(data)
-
-	p.ParserData.Pos = 0
+`
+	if g.s.Heatmap {
+		g.output += "	p.Heatmap = make(map[string]Heat)\n"
+	}
+	g.output += `	p.ParserData.Pos = 0
 	p.Root = Node{Name: "` + g.s.Name + `", P: p}
 	p.IgnoreRange = Range{}
 	p.LastError = 0
@@ -569,9 +630,24 @@ func (g *GoGenerator) Finish() error {
 	}
 
 	dumptree_s := ""
-
+	heatmap_s := ""
 	if g.s.Debug {
 		dumptree_s = "t.Log(\"\\n\"+root.String())"
+	}
+	if g.s.Heatmap {
+		heatmap_s = `var wasted time.Duration
+			var th TotHeat
+			for k, v := range p.Heatmap {
+				if strings.Contains(k, "-") {
+					wasted += time.Duration(int64(v.Calls-1)*int64(v.Time) / int64(v.Calls))
+				} else {
+					v.Name = k
+					th.Add(v)
+				}
+			}
+			t.Logf("Wasted %s", wasted)
+			t.Log(&th)
+			`
 	}
 	test := `package ` + strings.ToLower(g.s.Name) + `
 import (
@@ -580,8 +656,10 @@ import (
 	"net/http"
 	"testing"
 	"strings"
+	"time"
 )
 
+var _ = time.Time{}
 const testname = "` + g.s.Testname + `"
 
 func loadData(path string) (retdata string, err error) {
@@ -634,6 +712,7 @@ func TestParser(t *testing.T) {
 		} else {
 			root := p.RootNode()
 			` + dumptree_s + `
+			` + heatmap_s + `
 			if root.Range.End != len(p.ParserData.Data) {
 				t.Fatalf("Parsing didn't finish: %v\n%s", root, p.Error())
 			}
