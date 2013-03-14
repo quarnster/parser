@@ -26,25 +26,27 @@ import (
 	"fmt"
 )
 
-type Parser interface {
-	SetData(data string)
-	Reset()
-	RootNode() *Node
-	Error() Error
-}
+type (
+	Parser interface {
+		SetData(data string)
+		Reset()
+		RootNode() *Node
+		Error() Error
+	}
 
-type Error interface {
-	Line() int
-	Column() int
-	Description() string
-	String() string
-}
+	Error interface {
+		Line() int
+		Column() int
+		Description() string
+		String() string
+	}
 
-type BasicError struct {
-	line        int
-	column      int
-	description string
-}
+	BasicError struct {
+		line        int
+		column      int
+		description string
+	}
+)
 
 func NewError(line, column int, description string) Error {
 	return &BasicError{line, column, description}

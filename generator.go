@@ -35,10 +35,53 @@ var (
 	blocks     list.List
 )
 
-type CodeFormatter struct {
-	level string
-	data  string
-}
+type (
+	CodeFormatter struct {
+		level string
+		data  string
+	}
+
+	GeneratorSettings struct {
+		Header    string
+		Debug     bool
+		Bench     bool
+		Testname  string
+		Name      string
+		WriteFile func(name, data string) error
+		Heatmap   bool
+	}
+
+	Group interface {
+		Add(value, name string)
+	}
+
+	Generator interface {
+		TestCommand() []string
+		SetCustomActions([]CustomAction)
+		AddNode(data, defName string) string
+		Ignore(value string) string
+		Call(value string) string
+		MakeParserFunction(definitionNode *Node) error
+		MakeParserCall(value string) string
+		CheckInRange(a, b string) string
+		CheckInSet(a string) string
+		CheckAnyChar() string
+		CheckNext(a string) string
+		AssertNot(a string) string
+		AssertAnd(a string) string
+		ZeroOrMore(a string) string
+		OneOrMore(a string) string
+		Maybe(a string) string
+		BeginGroup(requireAll bool) Group
+		EndGroup(g Group) string
+		Begin(GeneratorSettings) error
+		Finish() error
+	}
+	CustomAction struct {
+		Name   string
+		Action func(Generator, string) string
+	}
+)
 
 func (i *CodeFormatter) Level() string {
 	return i.level
@@ -69,47 +112,6 @@ func (i *CodeFormatter) Add(add string) {
 
 func (i *CodeFormatter) String() string {
 	return i.data
-}
-
-type GeneratorSettings struct {
-	Header    string
-	Debug     bool
-	Bench     bool
-	Testname  string
-	Name      string
-	WriteFile func(name, data string) error
-	Heatmap   bool
-}
-
-type Group interface {
-	Add(value, name string)
-}
-
-type Generator interface {
-	TestCommand() []string
-	SetCustomActions([]CustomAction)
-	AddNode(data, defName string) string
-	Ignore(value string) string
-	Call(value string) string
-	MakeParserFunction(definitionNode *Node) error
-	MakeParserCall(value string) string
-	CheckInRange(a, b string) string
-	CheckInSet(a string) string
-	CheckAnyChar() string
-	CheckNext(a string) string
-	AssertNot(a string) string
-	AssertAnd(a string) string
-	ZeroOrMore(a string) string
-	OneOrMore(a string) string
-	Maybe(a string) string
-	BeginGroup(requireAll bool) Group
-	EndGroup(g Group) string
-	Begin(GeneratorSettings) error
-	Finish() error
-}
-type CustomAction struct {
-	Name   string
-	Action func(Generator, string) string
 }
 
 func helper(gen Generator, node *Node) (retstring string) {

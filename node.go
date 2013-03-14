@@ -29,13 +29,22 @@ import (
 	"fmt"
 )
 
-type Range struct {
-	Start, End int
-}
+type (
+	Range struct {
+		Start, End int
+	}
 
-type DataSource interface {
-	Data(start, end int) string
-}
+	DataSource interface {
+		Data(start, end int) string
+	}
+
+	Node struct {
+		Range    Range
+		Name     string
+		Children []*Node
+		P        DataSource
+	}
+)
 
 func (r *Range) Clip(ignore Range) (clipped bool) {
 	if r.Start >= ignore.Start && r.End <= ignore.End {
@@ -54,13 +63,6 @@ func (r *Range) Clip(ignore Range) (clipped bool) {
 		r.End = r.Start
 	}
 	return clipped
-}
-
-type Node struct {
-	Range    Range
-	Name     string
-	Children []*Node
-	P        DataSource
 }
 
 func (n *Node) format(indent string) string {

@@ -47,7 +47,6 @@ func (p *Peg) RootNode() *Node {
 
 func (p *Peg) Parse(data string) bool {
 	p.ParserData.Data = ([]byte)(data)
-
 	p.ParserData.Pos = 0
 	p.Root = Node{Name: "Peg", P: p}
 	p.IgnoreRange = Range{}
