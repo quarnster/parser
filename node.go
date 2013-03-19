@@ -144,6 +144,19 @@ func (n *Node) Clone() *Node {
 	return &ret
 }
 
+func (n *Node) UpdateRange() Range {
+	for _, child := range n.Children {
+		curr := child.UpdateRange()
+		if curr.Start < n.Range.Start {
+			n.Range.Start = curr.Start
+		}
+		if curr.End > n.Range.End {
+			n.Range.End = curr.End
+		}
+	}
+	return n.Range
+}
+
 func (n *Node) Append(child *Node) {
 	n.Children = append(n.Children, child)
 }

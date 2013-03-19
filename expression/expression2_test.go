@@ -6,10 +6,10 @@ import (
 
 func TestParser2(t *testing.T) {
 	tests := [][]string{{"(MyMask & (Test >> 3)) << 0x2", `0-29: "EXPRESSION"
-	0-25: "ShiftLeft"
-		1-9: "Mask"
+	0-29: "ShiftLeft"
+		1-20: "Mask"
 			1-7: "Identifier" - Data: "MyMask"
-			11-18: "ShiftRight"
+			11-20: "ShiftRight"
 				11-15: "Identifier" - Data: "Test"
 				19-20: "Constant" - Data: "3"
 		26-29: "Constant" - Data: "0x2"

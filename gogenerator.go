@@ -559,9 +559,7 @@ func (p *` + g.s.Name + `) Parse(data string) bool {
 	p.IgnoreRange = Range{}
 	p.LastError = 0
 	ret := p.realParse()
-	if len(p.Root.Children) > 0 {
-		p.Root.Range = Range{p.Root.Children[0].Range.Start, p.Root.Children[len(p.Root.Children)-1].Range.End}
-	}
+	p.Root.UpdateRange()
 	return ret
 }
 
