@@ -107,11 +107,11 @@ func (g *GoGenerator) MakeParserFunction(node *Node) error {
 
 	if !g.havefunctions {
 		g.havefunctions = true
-		g.output += "func (p *" + g.s.Name + ") realParse() bool {\n\treturn p_" + defName + "(p)\n}\n"
+		g.output += "func (p *" + g.s.Name + ") realParse() bool {\n\treturn p." + defName + "()\n}\n"
 	}
 
 	indenter := CodeFormatter{}
-	indenter.Add("func p_" + defName + "(p *" + g.s.Name + ") bool {\n")
+	indenter.Add("func (p *" + g.s.Name + ") " + defName + "() bool {\n")
 	indenter.Inc()
 	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
 	if g.s.Heatmap {
@@ -217,7 +217,7 @@ func (g *GoGenerator) MakeParserCall(value string) string {
 	// 	g.inlineCount--
 	// }
 
-	return "p_" + value
+	return "p." + value
 }
 
 func (g *GoGenerator) CheckInRange(a, b string) string {
@@ -469,11 +469,11 @@ func (g *GoGenerator) Call(value string) string {
 	if callre1.MatchString(value) {
 		pref = ""
 	}
-	if strings.HasSuffix(value, "(p)") {
+	if strings.HasSuffix(value, "()") {
 		return pref + value
 	}
-	if strings.HasPrefix(value, "p_") || callre2.MatchString(value) {
-		return pref + value + "(p)"
+	if strings.HasPrefix(value, "p.") || callre2.MatchString(value) {
+		return pref + value + "()"
 	}
 	return value
 }
@@ -548,7 +548,7 @@ func (t *TotHeat) String() (ret string) {
 	return &p.Root
 }
 
-func (p *` + g.s.Name + `) Parse(data string) bool {
+func (p *` + g.s.Name + `) SetData(data string) {
 	p.ParserData.Data = ([]byte)(data)
 `
 	if g.s.Heatmap {
@@ -558,6 +558,10 @@ func (p *` + g.s.Name + `) Parse(data string) bool {
 	p.Root = Node{Name: "` + g.s.Name + `", P: p}
 	p.IgnoreRange = Range{}
 	p.LastError = 0
+}
+
+func (p *` + g.s.Name + `) Parse(data string) bool {
+	p.SetData(data)
 	ret := p.realParse()
 	p.Root.UpdateRange()
 	return ret

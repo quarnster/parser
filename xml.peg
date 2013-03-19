@@ -1,12 +1,12 @@
 XmlFile        <-    XmlStartTag DoctypeTag? (SingleTag / TagPair)+ Spacing* EndOfFile
 DoctypeTag     <-    "<!DOCTYPE" (!'>' .)+ '>' Spacing*
 XmlStartTag    <-    "<?xml" (!"?>" .)+ "?>" Spacing*
-TagPair        <-    Tag Data? EndTag
+TagPair        <-    Tag XmlData? EndTag
 Tag            <-    '<' Identifier (Spacing* Attribute Spacing*)* '>'
 SingleTag      <-    '<' Identifier (Spacing* Attribute Spacing*)* "/>"
 EndTag         <-    "</" [a-zA-z:] [a-zA-z:0-9]* '>'
 
-Data           <-    (Text / SingleTag / TagPair / Comment)*
+XmlData        <-    (Text / SingleTag / TagPair / Comment)*
 Text           <-    (!'<' .)+
 Attribute      <-    Identifier '=' QuotedValue
 QuotedValue    <-    '"' Value '"'
