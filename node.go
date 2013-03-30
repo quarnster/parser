@@ -46,8 +46,12 @@ type (
 	}
 )
 
+func (r *Range) Contains(other Range) bool {
+	return r.Start <= other.Start && r.End >= other.End
+}
+
 func (r *Range) Clip(ignore Range) (clipped bool) {
-	if r.Start >= ignore.Start && r.End <= ignore.End {
+	if ignore.Contains(*r) {
 		// this range is a subrange within the ignore range
 		return false
 	}
