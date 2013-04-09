@@ -26,14 +26,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package peg
 
 import (
-	"bytes"
 	. "github.com/quarnster/parser"
 )
 
 type Peg struct {
 	ParserData struct {
 		Pos  int
-		Data []byte
+		Data []rune
 	}
 
 	IgnoreRange Range
@@ -46,7 +45,7 @@ func (p *Peg) RootNode() *Node {
 }
 
 func (p *Peg) SetData(data string) {
-	p.ParserData.Data = ([]byte)(data)
+	p.ParserData.Data = []rune(data)
 	p.ParserData.Pos = 0
 	p.Root = Node{Name: "Peg", P: p}
 	p.IgnoreRange = Range{}
@@ -93,14 +92,7 @@ func (p *Peg) Error() Error {
 	if p.LastError == len(p.ParserData.Data) {
 		errstr = "Unexpected EOF"
 	} else {
-		e := p.LastError + 4
-		if e > len(p.ParserData.Data) {
-			e = len(p.ParserData.Data)
-		}
-
-		reader := bytes.NewReader(p.ParserData.Data[p.LastError:e])
-		r, _, _ := reader.ReadRune()
-		if r == '\r' || r == '\n' {
+		if r := p.ParserData.Data[p.LastError]; r == '\r' || r == '\n' {
 			errstr = "Unexpected new line"
 		} else {
 			errstr = "Unexpected " + string(r)

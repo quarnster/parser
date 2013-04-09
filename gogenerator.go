@@ -480,7 +480,7 @@ func (g *GoGenerator) Call(value string) string {
 
 func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	g.s = s
-	imports := "\n\nimport (\n\t\"bytes\"\n\t. \"github.com/quarnster/parser\"\n"
+	imports := "\n\nimport (\n\t. \"github.com/quarnster/parser\"\n"
 	impList := g.Imports
 	members := g.ParserVariables
 	if g.s.Heatmap {
@@ -498,7 +498,7 @@ func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	g.output = g.s.Header + "\n"
 	members = append(members, `ParserData struct {
 		Pos  int
-		Data []byte
+		Data []rune
 	}
 `, "IgnoreRange Range",
 		"Root        Node",
@@ -549,7 +549,7 @@ func (t *TotHeat) String() (ret string) {
 }
 
 func (p *` + g.s.Name + `) SetData(data string) {
-	p.ParserData.Data = ([]byte)(data)
+	p.ParserData.Data = []rune(data)
 `
 	if g.s.Heatmap {
 		g.output += "	p.Heatmap = make(map[string]Heat)\n"
@@ -600,14 +600,7 @@ func (p *` + g.s.Name + `) Error() Error {
 	if p.LastError == len(p.ParserData.Data) {
 		errstr = "Unexpected EOF"
 	} else {
-		e := p.LastError + 4
-		if e > len(p.ParserData.Data) {
-			e = len(p.ParserData.Data)
-		}
-
-		reader := bytes.NewReader(p.ParserData.Data[p.LastError:e])
-		r, _, _ := reader.ReadRune()
-		if r == '\r' || r == '\n' {
+		if r := p.ParserData.Data[p.LastError]; r == '\r' || r == '\n' {
 			errstr = "Unexpected new line"
 		} else {
 			errstr = "Unexpected " + string(r)
@@ -709,10 +702,11 @@ func TestParser(t *testing.T) {
 	if data, err := loadData(testname); err != nil {
 		t.Fatal(err)
 	} else {
+		root := p.RootNode()
 		if !p.Parse(data) {
+			` + dumptree_s + `
 			t.Fatalf("Didn't parse correctly: %s\n", p.Error())
 		} else {
-			root := p.RootNode()
 			` + dumptree_s + `
 			` + heatmap_s + `
 			if root.Range.End != len(p.ParserData.Data) {

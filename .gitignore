@@ -1,4 +1,4 @@
-json
+json/*
 !json/json2_test.go
 xml
 plistxml
