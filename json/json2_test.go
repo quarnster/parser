@@ -344,8 +344,8 @@ func TestParserComprehensive(t *testing.T) {
 				t.Fail()
 			}
 		}
-		if p.Error().String() != v {
-			t.Logf("Test %s failed\nExpected: %s\nReceived, %s", k, v, p.Error().String())
+		if p.Error().Error() != v {
+			t.Logf("Test %s failed\nExpected: %s\nReceived, %s", k, v, p.Error().Error())
 			t.Fail()
 		}
 	}

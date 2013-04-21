@@ -38,7 +38,7 @@ type (
 		Line() int
 		Column() int
 		Description() string
-		String() string
+		Error() string
 	}
 
 	BasicError struct {
@@ -51,7 +51,7 @@ type (
 func NewError(line, column int, description string) Error {
 	return &BasicError{line, column, description}
 }
-func (be *BasicError) String() string {
+func (be *BasicError) Error() string {
 	return fmt.Sprintf("%d,%d: %s", be.line, be.column, be.description)
 }
 func (be *BasicError) Line() int           { return be.line }
