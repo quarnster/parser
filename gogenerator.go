@@ -35,7 +35,6 @@ import (
 type GoGenerator struct {
 	s                     GeneratorSettings
 	output                string
-	AddDebugLogging       bool
 	CustomActions         []CustomAction
 	ParserVariables       []string
 	Imports               []string
@@ -144,7 +143,7 @@ defer func() {
 	if defaultAction {
 		data = g.AddNode(data, defName)
 	}
-	if g.AddDebugLogging {
+	if g.s.DebugLevel > DebugLevelNone {
 		if strings.HasPrefix(data, "accept") || data[0] == '{' {
 			data = "accept := false\n" + data
 		} else {
@@ -221,15 +220,24 @@ func (g *GoGenerator) MakeParserCall(value string) string {
 }
 
 func (g *GoGenerator) CheckInRange(a, b string) string {
+	var (
+		extra1, extra2 string
+	)
+	if g.s.DebugLevel >= DebugLevelAccept {
+		extra1 = `
+	log.Println(fm.Level()+"accept = false; out of range")`
+		extra2 = `
+		log.Printf(fm.Level()+"accept = false; character %c not range", c)`
+	}
 	return `if p.ParserData.Pos >= len(p.ParserData.Data) {
-	accept = false
+	accept = false` + extra1 + `
 } else {
 	c := p.ParserData.Data[p.ParserData.Pos]
 	if c >= '` + a + `' && c <= '` + b + `' {
 		p.ParserData.Pos++
 		accept = true
 	} else {
-		accept = false
+		accept = false` + extra2 + `
 	}
 }`
 }
@@ -275,18 +283,27 @@ func (g *GoGenerator) CheckAnyChar() string {
 }
 
 func (g *GoGenerator) CheckNext(a string) string {
-	/*
-	 */
+	var (
+		extra1, extra2 string
+	)
+	if g.s.DebugLevel >= DebugLevelAccept {
+		extra1 = `
+	log.Println(fm.Level()+"accept = false; out of range")`
+	}
 
 	if a[0] == '\'' {
 		return `if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ` + a + ` {
-	accept = false
+	accept = false` + extra1 + `
 } else {
 	p.ParserData.Pos++
 	accept = true
 }`
 	}
 	a = a[1 : len(a)-1]
+	if g.s.DebugLevel >= DebugLevelAccept {
+		extra2 = fmt.Sprintf(`
+	log.Printf(fm.Level()+"accept = false; expected %s, have %%s", string(p.ParserData.Data[s:e]))`, a)
+	}
 	tests := ""
 	pos := 0
 	for i := 0; i < len(a); i, pos = i+1, pos+1 {
@@ -311,16 +328,16 @@ func (g *GoGenerator) CheckNext(a string) string {
 	s := p.ParserData.Pos
 	e := s + %d
 	if e > len(p.ParserData.Data) {
-		accept = false
+		accept = false%s
 	} else {
 		if %s {
-			accept = false
+			accept = false%s
 		}
 	}
 	if accept {
 		p.ParserData.Pos += %d
 	}
-}`, pos, tests, pos)
+}`, pos, extra1, tests, extra2, pos)
 }
 
 func (g *GoGenerator) AssertNot(a string) string {
@@ -487,7 +504,7 @@ func (g *GoGenerator) Begin(s GeneratorSettings) error {
 		members = append(members, "Heatmap map[string]Heat")
 		impList = append(impList, "fmt", "time", "sort")
 	}
-	if g.AddDebugLogging {
+	if g.s.DebugLevel > DebugLevelNone {
 		impList = append(impList, "log")
 	}
 	if len(impList) > 0 {
@@ -505,7 +522,7 @@ func (g *GoGenerator) Begin(s GeneratorSettings) error {
 		"LastError   int")
 	g.output += fmt.Sprintln("package " + strings.ToLower(g.s.Name) + imports + "\ntype " + g.s.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
 
-	if g.AddDebugLogging {
+	if g.s.DebugLevel > DebugLevelNone {
 		g.output += "var fm CodeFormatter\n\n"
 	}
 	if g.s.Heatmap {

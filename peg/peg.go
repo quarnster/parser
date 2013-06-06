@@ -920,6 +920,8 @@ func (p *Peg) Char() bool {
 	// Char          <- '\\' [nrt'"\[\]\\]
 	//                / '\\' [0-2][0-7][0-7]
 	//                / '\\' [0-7][0-7]?
+	//                / "\\u" Hex Hex Hex Hex
+	//                / "\\U" Hex Hex Hex Hex Hex Hex Hex Hex
 	//                / !'\\' .
 	accept := false
 	accept = true
@@ -1060,24 +1062,33 @@ func (p *Peg) Char() bool {
 				if !accept {
 					{
 						save := p.ParserData.Pos
-						s := p.ParserData.Pos
-						if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\\' {
-							accept = false
-						} else {
-							p.ParserData.Pos++
+						{
 							accept = true
-						}
-						p.ParserData.Pos = s
-						p.Root.Discard(s)
-						accept = !accept
-						if accept {
-							if p.ParserData.Pos >= len(p.ParserData.Data) {
+							s := p.ParserData.Pos
+							e := s + 2
+							if e > len(p.ParserData.Data) {
 								accept = false
 							} else {
-								p.ParserData.Pos++
-								accept = true
+								if p.ParserData.Data[s+0] != '\\' || p.ParserData.Data[s+1] != 'u' {
+									accept = false
+								}
 							}
 							if accept {
+								p.ParserData.Pos += 2
+							}
+						}
+						if accept {
+							accept = p.Hex()
+							if accept {
+								accept = p.Hex()
+								if accept {
+									accept = p.Hex()
+									if accept {
+										accept = p.Hex()
+										if accept {
+										}
+									}
+								}
 							}
 						}
 						if !accept {
@@ -1088,6 +1099,89 @@ func (p *Peg) Char() bool {
 						}
 					}
 					if !accept {
+						{
+							save := p.ParserData.Pos
+							{
+								accept = true
+								s := p.ParserData.Pos
+								e := s + 2
+								if e > len(p.ParserData.Data) {
+									accept = false
+								} else {
+									if p.ParserData.Data[s+0] != '\\' || p.ParserData.Data[s+1] != 'U' {
+										accept = false
+									}
+								}
+								if accept {
+									p.ParserData.Pos += 2
+								}
+							}
+							if accept {
+								accept = p.Hex()
+								if accept {
+									accept = p.Hex()
+									if accept {
+										accept = p.Hex()
+										if accept {
+											accept = p.Hex()
+											if accept {
+												accept = p.Hex()
+												if accept {
+													accept = p.Hex()
+													if accept {
+														accept = p.Hex()
+														if accept {
+															accept = p.Hex()
+															if accept {
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+							if !accept {
+								if p.LastError < p.ParserData.Pos {
+									p.LastError = p.ParserData.Pos
+								}
+								p.ParserData.Pos = save
+							}
+						}
+						if !accept {
+							{
+								save := p.ParserData.Pos
+								s := p.ParserData.Pos
+								if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\\' {
+									accept = false
+								} else {
+									p.ParserData.Pos++
+									accept = true
+								}
+								p.ParserData.Pos = s
+								p.Root.Discard(s)
+								accept = !accept
+								if accept {
+									if p.ParserData.Pos >= len(p.ParserData.Data) {
+										accept = false
+									} else {
+										p.ParserData.Pos++
+										accept = true
+									}
+									if accept {
+									}
+								}
+								if !accept {
+									if p.LastError < p.ParserData.Pos {
+										p.LastError = p.ParserData.Pos
+									}
+									p.ParserData.Pos = save
+								}
+							}
+							if !accept {
+							}
+						}
 					}
 				}
 			}
@@ -1100,6 +1194,72 @@ func (p *Peg) Char() bool {
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Char"
+		node.P = p
+		node.Range.Clip(p.IgnoreRange)
+		p.Root.Append(node)
+	} else {
+		p.Root.Discard(start)
+	}
+	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
+		p.IgnoreRange = Range{}
+	}
+	return accept
+}
+
+func (p *Peg) Hex() bool {
+	// Hex           <- [A-Fa-f0-9]
+	accept := false
+	accept = true
+	start := p.ParserData.Pos
+	{
+		save := p.ParserData.Pos
+		if p.ParserData.Pos >= len(p.ParserData.Data) {
+			accept = false
+		} else {
+			c := p.ParserData.Data[p.ParserData.Pos]
+			if c >= 'A' && c <= 'F' {
+				p.ParserData.Pos++
+				accept = true
+			} else {
+				accept = false
+			}
+		}
+		if !accept {
+			if p.ParserData.Pos >= len(p.ParserData.Data) {
+				accept = false
+			} else {
+				c := p.ParserData.Data[p.ParserData.Pos]
+				if c >= 'a' && c <= 'f' {
+					p.ParserData.Pos++
+					accept = true
+				} else {
+					accept = false
+				}
+			}
+			if !accept {
+				if p.ParserData.Pos >= len(p.ParserData.Data) {
+					accept = false
+				} else {
+					c := p.ParserData.Data[p.ParserData.Pos]
+					if c >= '0' && c <= '9' {
+						p.ParserData.Pos++
+						accept = true
+					} else {
+						accept = false
+					}
+				}
+				if !accept {
+				}
+			}
+		}
+		if !accept {
+			p.ParserData.Pos = save
+		}
+	}
+	end := p.ParserData.Pos
+	if accept {
+		node := p.Root.Cleanup(start, end)
+		node.Name = "Hex"
 		node.P = p
 		node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)

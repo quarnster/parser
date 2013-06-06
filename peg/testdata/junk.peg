@@ -1,0 +1,4 @@
+Test                        <-      (Hello / Junk)+
+Hello                       <-      "Hello"
+Junk                        <-      (!EndOfLine .)* EndOfLine
+EndOfLine                   <-      "\n\r" / '\n' / '\r'

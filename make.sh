@@ -4,3 +4,4 @@ go run exe/main.go -peg plistxml.peg -dumptree -testfile "/Users/quarnster/Libra
 go run exe/main.go -peg ini.peg -testfile /Volumes/BOOTCAMP/Windows/win.ini -ignore "EndOfLine,KeyValuePair,IniFile" -notest
 go run exe/main.go -peg expression.peg -testfile "expression.in" -dumptree -ignore "Spacing,Primary,Op,Expression,Grouping"
 go test github.com/quarnster/parser/json github.com/quarnster/parser/xml github.com/quarnster/parser/peg github.com/quarnster/parser/plistxml github.com/quarnster/parser/ini github.com/quarnster/parser/expression
+go test -bench . github.com/quarnster/parser/json github.com/quarnster/parser/xml github.com/quarnster/parser/peg github.com/quarnster/parser/plistxml github.com/quarnster/parser/ini github.com/quarnster/parser/expression

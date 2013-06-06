@@ -35,20 +35,30 @@ var (
 	blocks     list.List
 )
 
+const (
+	DebugLevelNone DebugLevel = iota
+	DebugLevelEnterExit
+	DebugLevelAccept
+)
+
 type (
 	CodeFormatter struct {
 		level string
 		data  string
 	}
 
+	DebugLevel int
+
 	GeneratorSettings struct {
-		Header    string
-		Debug     bool
-		Bench     bool
-		Testname  string
-		Name      string
-		WriteFile func(name, data string) error
-		Heatmap   bool
+		// Whether to generate a parser which outputs debug information
+		DebugLevel DebugLevel
+		Header     string
+		Debug      bool
+		Bench      bool
+		Testname   string
+		Name       string
+		WriteFile  func(name, data string) error
+		Heatmap    bool
 	}
 
 	Group interface {

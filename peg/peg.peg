@@ -21,7 +21,10 @@ Range         <- Char '-' Char / Char
 Char          <- '\\' [nrt'"\[\]\\]
                / '\\' [0-2][0-7][0-7]
                / '\\' [0-7][0-7]?
+               / "\\u" Hex Hex Hex Hex
+               / "\\U" Hex Hex Hex Hex Hex Hex Hex Hex
                / !'\\' .
+Hex           <- [A-Fa-f0-9]
 LEFTARROW     <- "<-" Spacing
 SLASH         <- '/' Spacing
 AND           <- '&' Spacing

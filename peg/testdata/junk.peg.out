@@ -1,0 +1,9 @@
+=== RUN TestParser
+--- PASS: TestParser (0.00 seconds)
+	junk_test.go:64: 
+		0-34: "JUNK"
+			0-34: "Test"
+				11-16: "Hello" - Data: "Hello"
+				17-22: "Hello" - Data: "Hello"
+		
+PASS

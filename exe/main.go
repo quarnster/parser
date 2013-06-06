@@ -42,7 +42,7 @@ func main() {
 		pegfile   = ""
 		testfile  = ""
 		bench     = false
-		debug     = false
+		debug     = 0
 		dumptree  = false
 		notest    = false
 		heatmap   = false
@@ -53,7 +53,7 @@ func main() {
 	flag.StringVar(&pegfile, "peg", pegfile, "Pegfile for which to generate a parser for")
 	flag.StringVar(&testfile, "testfile", testfile, "Test file to be used in testing")
 	flag.BoolVar(&bench, "bench", bench, "Whether to run a benchmark test or not")
-	flag.BoolVar(&debug, "debug", debug, "Whether to make the generated parser spit out debug info")
+	flag.IntVar(&debug, "debug", debug, "The desired debug level the generated parser will use")
 	flag.BoolVar(&dumptree, "dumptree", dumptree, "Whether to make the generated parser spit out the generated tree")
 	flag.BoolVar(&notest, "notest", notest, "Whether to test the generated parser")
 	flag.BoolVar(&heatmap, "heatmap", heatmap, "Whether to generate a heatmap or not")
@@ -120,12 +120,13 @@ func main() {
 			}
 			header += "]\n"
 			s := parser.GeneratorSettings{
-				Header:   header,
-				Name:     strings.ToTitle(name),
-				Testname: testfile,
-				Debug:    dumptree,
-				Bench:    bench,
-				Heatmap:  heatmap,
+				Header:     header,
+				Name:       strings.ToTitle(name),
+				Testname:   testfile,
+				Debug:      dumptree,
+				DebugLevel: parser.DebugLevel(debug),
+				Bench:      bench,
+				Heatmap:    heatmap,
 				WriteFile: func(name, data string) error {
 					if err := os.Mkdir(root, 0755); err != nil && !os.IsExist(err) {
 						return err
