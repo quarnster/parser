@@ -153,22 +153,42 @@ defer func() {
 	pos = p.ParserData.Pos
 	l   = len(p.ParserData.Data)
 )
-
+`)
+		if g.s.DebugLevel >= DebugLevelEnterExit {
+			indenter.Add(`
 log.Println(fm.Level() + "` + defName + ` entered")
 fm.Inc()
-` + data + `
+`)
+		}
+		indenter.Add(data)
+		if g.s.DebugLevel >= DebugLevelEnterExit {
+			indenter.Add(`
 fm.Dec()
 if !accept && p.ParserData.Pos != pos {
 	log.Fatalln("` + defName + `", accept, ", ", pos, ", ", p.ParserData.Pos)
 }
+`)
+		}
+		if g.s.DebugLevel > DebugLevelNone {
+			indenter.Add(`
 p2 := p.ParserData.Pos
 data := ""
 if p2 < len(p.ParserData.Data) {
 	data = string(p.ParserData.Data[pos:p2])
 }
-log.Println(fm.Level()+"` + defName + ` returned: ", accept, ", ", pos, ", ", p.ParserData.Pos, ", ", l, string(data))
+`)
+			if g.s.DebugLevel < DebugLevelEnterExit {
+				indenter.Inc("if accept {\n")
+			}
+			indenter.Add(`log.Println(fm.Level()+"` + defName + ` returned: ", accept, ", ", pos, ", ", p.ParserData.Pos, ", ", l, string(data))` + "\n")
+			if g.s.DebugLevel < DebugLevelEnterExit {
+				indenter.Dec("}")
+			}
+
+			indenter.Add(`
 return accept
 `)
+		}
 	} else {
 		if strings.HasPrefix(data, "accept") || data[0] == '{' {
 			end := "return accept\n"

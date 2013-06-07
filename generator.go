@@ -37,6 +37,7 @@ var (
 
 const (
 	DebugLevelNone DebugLevel = iota
+	DebugLevelNodeCreation
 	DebugLevelEnterExit
 	DebugLevelAccept
 )
