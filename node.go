@@ -164,3 +164,12 @@ func (n *Node) UpdateRange() Range {
 func (n *Node) Append(child *Node) {
 	n.Children = append(n.Children, child)
 }
+
+func (n *Node) Simplify() {
+	for _, child := range n.Children {
+		child.Simplify()
+	}
+	if len(n.Children) == 1 && n.Children[0].Range == n.Range {
+		*n = *n.Children[0]
+	}
+}
