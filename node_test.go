@@ -25,6 +25,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package parser
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -44,6 +45,50 @@ func TestRangeClip(t *testing.T) {
 		a.Clip(ignoreRange)
 		if a != tests[i][2] {
 			t.Errorf("Expected %v, got: %v", a, tests[i][2])
+		}
+	}
+}
+
+func TestRangeInside(t *testing.T) {
+	r := Range{10, 20}
+	tests := []struct {
+		In  int
+		Exp bool
+	}{
+		{8, false},
+		{9, false},
+		{10, true},
+		{18, true},
+		{19, true},
+		{20, false},
+	}
+
+	for i, test := range tests {
+		if res := r.Inside(test.In); res != test.Exp {
+			t.Errorf("Test %d; Expected %v, got: %v", i, test.Exp, res)
+		}
+	}
+}
+
+func TestRangeJoin(t *testing.T) {
+	tests := []struct {
+		A, B, Out Range
+		Res       bool
+	}{
+		{Range{10, 20}, Range{0, 5}, Range{10, 20}, false},
+		{Range{10, 20}, Range{0, 11}, Range{0, 20}, true},
+		{Range{10, 20}, Range{5, 15}, Range{5, 20}, true},
+		{Range{10, 20}, Range{15, 30}, Range{10, 30}, true},
+		{Range{10, 20}, Range{20, 30}, Range{10, 30}, true},
+		{Range{10, 20}, Range{21, 30}, Range{10, 20}, false},
+		{Range{10, 20}, Range{10, 30}, Range{10, 30}, true},
+		{Range{10, 30}, Range{10, 20}, Range{10, 30}, true},
+	}
+	for i, test := range tests {
+		if res := test.A.Join(test.B); !reflect.DeepEqual(test.A, test.Out) {
+			t.Errorf("Test %d; Expected %v, got: %v", i, test.Out, test.A)
+		} else if res != test.Res {
+			t.Errorf("Test %d; Expected %v, got: %v", i, test.Res, res)
 		}
 	}
 }

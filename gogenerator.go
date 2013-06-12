@@ -115,7 +115,7 @@ func (g *GoGenerator) MakeParserFunction(node *Node) error {
 	indenter.Add("// " + strings.Replace(strings.TrimSpace(node.Data()), "\n", "\n// ", -1) + "\n")
 	if g.s.Heatmap {
 		indenter.Add(`
-key := fmt.Sprintf("` + defName + `-%d", p.ParserData.Pos)
+key := fmt.Sprintf("` + defName + `")
 hs := time.Now()
 ov := p.Heatmap["` + defName + `"]
 defer func() {

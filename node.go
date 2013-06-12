@@ -50,6 +50,26 @@ func (r *Range) Contains(other Range) bool {
 	return r.Start <= other.Start && r.End >= other.End
 }
 
+func (r *Range) Inside(x int) bool {
+	return x >= r.Start && x < r.End
+}
+
+func (r *Range) Join(other Range) (could_join bool) {
+	mi, ma := r, &other
+	if mi.Start > ma.Start {
+		mi, ma = ma, mi
+	}
+	if could_join = mi.End == ma.Start || mi.Inside(ma.Start); could_join {
+		r.Start = mi.Start
+		if mi.End < ma.End {
+			r.End = ma.End
+		} else {
+			r.End = mi.End
+		}
+	}
+	return
+}
+
 func (r *Range) Clip(ignore Range) (clipped bool) {
 	if ignore.Contains(*r) {
 		// this range is a subrange within the ignore range
