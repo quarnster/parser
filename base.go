@@ -46,6 +46,15 @@ type (
 		column      int
 		description string
 	}
+	Reader interface {
+		Len() int
+		Pos() int
+		Read() rune
+		UnRead()
+		LineCol(offset int) (line, col int)
+		Substring(start, end int) string
+		Seek(offset int)
+	}
 )
 
 func NewError(line, column int, description string) Error {

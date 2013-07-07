@@ -156,10 +156,10 @@ true, false, true, true, null, false
 	28-28: "EndOfFile" - Data: ""
 `,
 	`["€þıœəßð some utf-8 ĸʒ×ŋµåäö𝄞"]
-`: `0-33: "JSON"
-	0-32: "Array"
-		2-30: "Text" - Data: "€þıœəßð some utf-8 ĸʒ×ŋµåäö𝄞"
-	33-33: "EndOfFile" - Data: ""
+`: `0-52: "JSON"
+	0-51: "Array"
+		2-49: "Text" - Data: "€þıœəßð some utf-8 ĸʒ×ŋµåäö𝄞"
+	52-52: "EndOfFile" - Data: ""
 `,
 	`[1]
 `: `0-4: "JSON"

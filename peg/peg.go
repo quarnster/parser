@@ -30,11 +30,7 @@ import (
 )
 
 type Peg struct {
-	ParserData struct {
-		Pos  int
-		Data []rune
-	}
-
+	ParserData Reader
 	IgnoreRange Range
 	Root        Node
 	LastError   int
@@ -45,8 +41,7 @@ func (p *Peg) RootNode() *Node {
 }
 
 func (p *Peg) SetData(data string) {
-	p.ParserData.Data = []rune(data)
-	p.ParserData.Pos = 0
+	p.ParserData = NewReader(data)
 	p.Root = Node{Name: "Peg", P: p}
 	p.IgnoreRange = Range{}
 	p.LastError = 0
@@ -60,39 +55,18 @@ func (p *Peg) Parse(data string) bool {
 }
 
 func (p *Peg) Data(start, end int) string {
-	l := len(p.ParserData.Data)
-	if l == 0 {
-		return ""
-	}
-	if start < 0 {
-		start = 0
-	}
-	if end > l {
-		end = l
-	}
-	if start > end {
-		return ""
-	}
-	return string(p.ParserData.Data[start:end])
+	return p.ParserData.Substring(start, end)
 }
 
 func (p *Peg) Error() Error {
 	errstr := ""
+	line, column := p.ParserData.LineCol(p.LastError)
 
-	line := 1
-	column := 1
-	for _, r := range p.ParserData.Data[:p.LastError] {
-		column++
-		if r == '\n' {
-			line++
-			column = 1
-		}
-	}
-
-	if p.LastError == len(p.ParserData.Data) {
+	if p.LastError == p.ParserData.Len() {
 		errstr = "Unexpected EOF"
 	} else {
-		if r := p.ParserData.Data[p.LastError]; r == '\r' || r == '\n' {
+		p.ParserData.Seek(p.LastError)
+		if r := p.ParserData.Read(); r == '\r' || r == '\n' {
 			errstr = "Unexpected new line"
 		} else {
 			errstr = "Unexpected " + string(r)
@@ -108,16 +82,16 @@ func (p *Peg) Grammar() bool {
 	// Grammar       <- Spacing Definition+ EndOfFile?
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		accept = p.Spacing()
 		if accept {
 			{
-				save := p.ParserData.Pos
+				save := p.ParserData.Pos()
 				accept = p.Definition()
 				if !accept {
-					p.ParserData.Pos = save
+					p.ParserData.Seek(save)
 				} else {
 					for accept {
 						accept = p.Definition()
@@ -133,17 +107,17 @@ func (p *Peg) Grammar() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	if accept && start != p.ParserData.Pos {
+	if accept && start != p.ParserData.Pos() {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		p.IgnoreRange.End = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -152,9 +126,9 @@ func (p *Peg) Definition() bool {
 	// Definition    <- Identifier LEFTARROW Expression
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		accept = p.Identifier()
 		if accept {
 			accept = p.LEFTARROW()
@@ -165,13 +139,13 @@ func (p *Peg) Definition() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Definition"
@@ -191,16 +165,16 @@ func (p *Peg) Expression() bool {
 	// Expression    <- Sequence (SLASH Sequence)*
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		accept = p.Sequence()
 		if accept {
 			{
 				accept = true
 				for accept {
 					{
-						save := p.ParserData.Pos
+						save := p.ParserData.Pos()
 						accept = p.SLASH()
 						if accept {
 							accept = p.Sequence()
@@ -208,10 +182,10 @@ func (p *Peg) Expression() bool {
 							}
 						}
 						if !accept {
-							if p.LastError < p.ParserData.Pos {
-								p.LastError = p.ParserData.Pos
+							if p.LastError < p.ParserData.Pos() {
+								p.LastError = p.ParserData.Pos()
 							}
-							p.ParserData.Pos = save
+							p.ParserData.Seek(save)
 						}
 					}
 				}
@@ -221,13 +195,13 @@ func (p *Peg) Expression() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Expression"
@@ -247,12 +221,12 @@ func (p *Peg) Sequence() bool {
 	// Sequence      <- Prefix+
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		accept = p.Prefix()
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		} else {
 			for accept {
 				accept = p.Prefix()
@@ -260,7 +234,7 @@ func (p *Peg) Sequence() bool {
 			accept = true
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Sequence"
@@ -280,11 +254,11 @@ func (p *Peg) Prefix() bool {
 	// Prefix        <- (AND / NOT)? Suffix
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		{
-			save := p.ParserData.Pos
+			save := p.ParserData.Pos()
 			accept = p.AND()
 			if !accept {
 				accept = p.NOT()
@@ -292,7 +266,7 @@ func (p *Peg) Prefix() bool {
 				}
 			}
 			if !accept {
-				p.ParserData.Pos = save
+				p.ParserData.Seek(save)
 			}
 		}
 		accept = true
@@ -302,13 +276,13 @@ func (p *Peg) Prefix() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Prefix"
@@ -328,13 +302,13 @@ func (p *Peg) Suffix() bool {
 	// Suffix        <- Primary (QUESTION / STAR / PLUS)?
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		accept = p.Primary()
 		if accept {
 			{
-				save := p.ParserData.Pos
+				save := p.ParserData.Pos()
 				accept = p.QUESTION()
 				if !accept {
 					accept = p.STAR()
@@ -345,7 +319,7 @@ func (p *Peg) Suffix() bool {
 					}
 				}
 				if !accept {
-					p.ParserData.Pos = save
+					p.ParserData.Seek(save)
 				}
 			}
 			accept = true
@@ -353,13 +327,13 @@ func (p *Peg) Suffix() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Suffix"
@@ -382,31 +356,31 @@ func (p *Peg) Primary() bool {
 	// # Lexical syntax
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		{
-			save := p.ParserData.Pos
+			save := p.ParserData.Pos()
 			accept = p.Identifier()
 			if accept {
-				s := p.ParserData.Pos
+				s := p.ParserData.Pos()
 				accept = p.LEFTARROW()
-				p.ParserData.Pos = s
+				p.ParserData.Seek(s)
 				p.Root.Discard(s)
 				accept = !accept
 				if accept {
 				}
 			}
 			if !accept {
-				if p.LastError < p.ParserData.Pos {
-					p.LastError = p.ParserData.Pos
+				if p.LastError < p.ParserData.Pos() {
+					p.LastError = p.ParserData.Pos()
 				}
-				p.ParserData.Pos = save
+				p.ParserData.Seek(save)
 			}
 		}
 		if !accept {
 			{
-				save := p.ParserData.Pos
+				save := p.ParserData.Pos()
 				accept = p.OPEN()
 				if accept {
 					accept = p.Expression()
@@ -417,10 +391,10 @@ func (p *Peg) Primary() bool {
 					}
 				}
 				if !accept {
-					if p.LastError < p.ParserData.Pos {
-						p.LastError = p.ParserData.Pos
+					if p.LastError < p.ParserData.Pos() {
+						p.LastError = p.ParserData.Pos()
 					}
-					p.ParserData.Pos = save
+					p.ParserData.Seek(save)
 				}
 			}
 			if !accept {
@@ -436,10 +410,10 @@ func (p *Peg) Primary() bool {
 			}
 		}
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Primary"
@@ -459,9 +433,9 @@ func (p *Peg) Identifier() bool {
 	// Identifier    <- IdentStart IdentCont* Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		accept = p.IdentStart()
 		if accept {
 			{
@@ -478,13 +452,13 @@ func (p *Peg) Identifier() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Identifier"
@@ -504,39 +478,30 @@ func (p *Peg) IdentStart() bool {
 	// IdentStart    <- [a-zA-Z_]
 	accept := false
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) {
-			accept = false
+		save := p.ParserData.Pos()
+		c := p.ParserData.Read()
+		if c >= 'a' && c <= 'z' {
+			accept = true
 		} else {
-			c := p.ParserData.Data[p.ParserData.Pos]
-			if c >= 'a' && c <= 'z' {
-				p.ParserData.Pos++
-				accept = true
-			} else {
-				accept = false
-			}
+			p.ParserData.UnRead()
+			accept = false
 		}
 		if !accept {
-			if p.ParserData.Pos >= len(p.ParserData.Data) {
-				accept = false
+			c := p.ParserData.Read()
+			if c >= 'A' && c <= 'Z' {
+				accept = true
 			} else {
-				c := p.ParserData.Data[p.ParserData.Pos]
-				if c >= 'A' && c <= 'Z' {
-					p.ParserData.Pos++
-					accept = true
-				} else {
-					accept = false
-				}
+				p.ParserData.UnRead()
+				accept = false
 			}
 			if !accept {
 				{
 					accept = false
-					if p.ParserData.Pos < len(p.ParserData.Data) {
-						c := p.ParserData.Data[p.ParserData.Pos]
-						if c == '_' {
-							p.ParserData.Pos++
-							accept = true
-						}
+					c := p.ParserData.Read()
+					if c == '_' {
+						accept = true
+					} else {
+						p.ParserData.UnRead()
 					}
 				}
 				if !accept {
@@ -544,7 +509,7 @@ func (p *Peg) IdentStart() bool {
 			}
 		}
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
 	return accept
@@ -554,25 +519,21 @@ func (p *Peg) IdentCont() bool {
 	// IdentCont     <- IdentStart / [0-9]
 	accept := false
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		accept = p.IdentStart()
 		if !accept {
-			if p.ParserData.Pos >= len(p.ParserData.Data) {
-				accept = false
+			c := p.ParserData.Read()
+			if c >= '0' && c <= '9' {
+				accept = true
 			} else {
-				c := p.ParserData.Data[p.ParserData.Pos]
-				if c >= '0' && c <= '9' {
-					p.ParserData.Pos++
-					accept = true
-				} else {
-					accept = false
-				}
+				p.ParserData.UnRead()
+				accept = false
 			}
 			if !accept {
 			}
 		}
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
 	return accept
@@ -583,28 +544,28 @@ func (p *Peg) Literal() bool {
 	//                / '"' (!'"' Char)+ '"' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		{
-			save := p.ParserData.Pos
-			if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\'' {
+			save := p.ParserData.Pos()
+			if p.ParserData.Read() != '\'' {
+				p.ParserData.UnRead()
 				accept = false
 			} else {
-				p.ParserData.Pos++
 				accept = true
 			}
 			if accept {
 				{
-					save := p.ParserData.Pos
-					s := p.ParserData.Pos
-					if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\'' {
+					save := p.ParserData.Pos()
+					s := p.ParserData.Pos()
+					if p.ParserData.Read() != '\'' {
+						p.ParserData.UnRead()
 						accept = false
 					} else {
-						p.ParserData.Pos++
 						accept = true
 					}
-					p.ParserData.Pos = s
+					p.ParserData.Seek(s)
 					p.Root.Discard(s)
 					accept = !accept
 					if accept {
@@ -613,17 +574,17 @@ func (p *Peg) Literal() bool {
 						}
 					}
 					if !accept {
-						if p.LastError < p.ParserData.Pos {
-							p.LastError = p.ParserData.Pos
+						if p.LastError < p.ParserData.Pos() {
+							p.LastError = p.ParserData.Pos()
 						}
-						p.ParserData.Pos = save
+						p.ParserData.Seek(save)
 					}
 				}
 				if accept {
-					if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\'' {
+					if p.ParserData.Read() != '\'' {
+						p.ParserData.UnRead()
 						accept = false
 					} else {
-						p.ParserData.Pos++
 						accept = true
 					}
 					if accept {
@@ -634,34 +595,34 @@ func (p *Peg) Literal() bool {
 				}
 			}
 			if !accept {
-				if p.LastError < p.ParserData.Pos {
-					p.LastError = p.ParserData.Pos
+				if p.LastError < p.ParserData.Pos() {
+					p.LastError = p.ParserData.Pos()
 				}
-				p.ParserData.Pos = save
+				p.ParserData.Seek(save)
 			}
 		}
 		if !accept {
 			{
-				save := p.ParserData.Pos
-				if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '"' {
+				save := p.ParserData.Pos()
+				if p.ParserData.Read() != '"' {
+					p.ParserData.UnRead()
 					accept = false
 				} else {
-					p.ParserData.Pos++
 					accept = true
 				}
 				if accept {
 					{
-						save := p.ParserData.Pos
+						save := p.ParserData.Pos()
 						{
-							save := p.ParserData.Pos
-							s := p.ParserData.Pos
-							if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '"' {
+							save := p.ParserData.Pos()
+							s := p.ParserData.Pos()
+							if p.ParserData.Read() != '"' {
+								p.ParserData.UnRead()
 								accept = false
 							} else {
-								p.ParserData.Pos++
 								accept = true
 							}
-							p.ParserData.Pos = s
+							p.ParserData.Seek(s)
 							p.Root.Discard(s)
 							accept = !accept
 							if accept {
@@ -670,26 +631,26 @@ func (p *Peg) Literal() bool {
 								}
 							}
 							if !accept {
-								if p.LastError < p.ParserData.Pos {
-									p.LastError = p.ParserData.Pos
+								if p.LastError < p.ParserData.Pos() {
+									p.LastError = p.ParserData.Pos()
 								}
-								p.ParserData.Pos = save
+								p.ParserData.Seek(save)
 							}
 						}
 						if !accept {
-							p.ParserData.Pos = save
+							p.ParserData.Seek(save)
 						} else {
 							for accept {
 								{
-									save := p.ParserData.Pos
-									s := p.ParserData.Pos
-									if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '"' {
+									save := p.ParserData.Pos()
+									s := p.ParserData.Pos()
+									if p.ParserData.Read() != '"' {
+										p.ParserData.UnRead()
 										accept = false
 									} else {
-										p.ParserData.Pos++
 										accept = true
 									}
-									p.ParserData.Pos = s
+									p.ParserData.Seek(s)
 									p.Root.Discard(s)
 									accept = !accept
 									if accept {
@@ -698,10 +659,10 @@ func (p *Peg) Literal() bool {
 										}
 									}
 									if !accept {
-										if p.LastError < p.ParserData.Pos {
-											p.LastError = p.ParserData.Pos
+										if p.LastError < p.ParserData.Pos() {
+											p.LastError = p.ParserData.Pos()
 										}
-										p.ParserData.Pos = save
+										p.ParserData.Seek(save)
 									}
 								}
 							}
@@ -709,10 +670,10 @@ func (p *Peg) Literal() bool {
 						}
 					}
 					if accept {
-						if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '"' {
+						if p.ParserData.Read() != '"' {
+							p.ParserData.UnRead()
 							accept = false
 						} else {
-							p.ParserData.Pos++
 							accept = true
 						}
 						if accept {
@@ -723,20 +684,20 @@ func (p *Peg) Literal() bool {
 					}
 				}
 				if !accept {
-					if p.LastError < p.ParserData.Pos {
-						p.LastError = p.ParserData.Pos
+					if p.LastError < p.ParserData.Pos() {
+						p.LastError = p.ParserData.Pos()
 					}
-					p.ParserData.Pos = save
+					p.ParserData.Seek(save)
 				}
 			}
 			if !accept {
 			}
 		}
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Literal"
@@ -756,28 +717,28 @@ func (p *Peg) Class() bool {
 	// Class         <- '[' (!']' Range)+ ']' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '[' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '[' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
 			{
-				save := p.ParserData.Pos
+				save := p.ParserData.Pos()
 				{
-					save := p.ParserData.Pos
-					s := p.ParserData.Pos
-					if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ']' {
+					save := p.ParserData.Pos()
+					s := p.ParserData.Pos()
+					if p.ParserData.Read() != ']' {
+						p.ParserData.UnRead()
 						accept = false
 					} else {
-						p.ParserData.Pos++
 						accept = true
 					}
-					p.ParserData.Pos = s
+					p.ParserData.Seek(s)
 					p.Root.Discard(s)
 					accept = !accept
 					if accept {
@@ -786,26 +747,26 @@ func (p *Peg) Class() bool {
 						}
 					}
 					if !accept {
-						if p.LastError < p.ParserData.Pos {
-							p.LastError = p.ParserData.Pos
+						if p.LastError < p.ParserData.Pos() {
+							p.LastError = p.ParserData.Pos()
 						}
-						p.ParserData.Pos = save
+						p.ParserData.Seek(save)
 					}
 				}
 				if !accept {
-					p.ParserData.Pos = save
+					p.ParserData.Seek(save)
 				} else {
 					for accept {
 						{
-							save := p.ParserData.Pos
-							s := p.ParserData.Pos
-							if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ']' {
+							save := p.ParserData.Pos()
+							s := p.ParserData.Pos()
+							if p.ParserData.Read() != ']' {
+								p.ParserData.UnRead()
 								accept = false
 							} else {
-								p.ParserData.Pos++
 								accept = true
 							}
-							p.ParserData.Pos = s
+							p.ParserData.Seek(s)
 							p.Root.Discard(s)
 							accept = !accept
 							if accept {
@@ -814,10 +775,10 @@ func (p *Peg) Class() bool {
 								}
 							}
 							if !accept {
-								if p.LastError < p.ParserData.Pos {
-									p.LastError = p.ParserData.Pos
+								if p.LastError < p.ParserData.Pos() {
+									p.LastError = p.ParserData.Pos()
 								}
-								p.ParserData.Pos = save
+								p.ParserData.Seek(save)
 							}
 						}
 					}
@@ -825,10 +786,10 @@ func (p *Peg) Class() bool {
 				}
 			}
 			if accept {
-				if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ']' {
+				if p.ParserData.Read() != ']' {
+					p.ParserData.UnRead()
 					accept = false
 				} else {
-					p.ParserData.Pos++
 					accept = true
 				}
 				if accept {
@@ -839,13 +800,13 @@ func (p *Peg) Class() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Class"
@@ -865,17 +826,17 @@ func (p *Peg) Range() bool {
 	// Range         <- Char '-' Char / Char
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		{
-			save := p.ParserData.Pos
+			save := p.ParserData.Pos()
 			accept = p.Char()
 			if accept {
-				if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '-' {
+				if p.ParserData.Read() != '-' {
+					p.ParserData.UnRead()
 					accept = false
 				} else {
-					p.ParserData.Pos++
 					accept = true
 				}
 				if accept {
@@ -885,10 +846,10 @@ func (p *Peg) Range() bool {
 				}
 			}
 			if !accept {
-				if p.LastError < p.ParserData.Pos {
-					p.LastError = p.ParserData.Pos
+				if p.LastError < p.ParserData.Pos() {
+					p.LastError = p.ParserData.Pos()
 				}
-				p.ParserData.Pos = save
+				p.ParserData.Seek(save)
 			}
 		}
 		if !accept {
@@ -897,10 +858,10 @@ func (p *Peg) Range() bool {
 			}
 		}
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Range"
@@ -925,82 +886,69 @@ func (p *Peg) Char() bool {
 	//                / !'\\' .
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		{
-			save := p.ParserData.Pos
-			if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\\' {
+			save := p.ParserData.Pos()
+			if p.ParserData.Read() != '\\' {
+				p.ParserData.UnRead()
 				accept = false
 			} else {
-				p.ParserData.Pos++
 				accept = true
 			}
 			if accept {
 				{
 					accept = false
-					if p.ParserData.Pos < len(p.ParserData.Data) {
-						c := p.ParserData.Data[p.ParserData.Pos]
-						if c == 'n' || c == 'r' || c == 't' || c == '\'' || c == '"' || c == '[' || c == ']' || c == '\\' {
-							p.ParserData.Pos++
-							accept = true
-						}
+					c := p.ParserData.Read()
+					if c == 'n' || c == 'r' || c == 't' || c == '\'' || c == '"' || c == '[' || c == ']' || c == '\\' {
+						accept = true
+					} else {
+						p.ParserData.UnRead()
 					}
 				}
 				if accept {
 				}
 			}
 			if !accept {
-				if p.LastError < p.ParserData.Pos {
-					p.LastError = p.ParserData.Pos
+				if p.LastError < p.ParserData.Pos() {
+					p.LastError = p.ParserData.Pos()
 				}
-				p.ParserData.Pos = save
+				p.ParserData.Seek(save)
 			}
 		}
 		if !accept {
 			{
-				save := p.ParserData.Pos
-				if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\\' {
+				save := p.ParserData.Pos()
+				if p.ParserData.Read() != '\\' {
+					p.ParserData.UnRead()
 					accept = false
 				} else {
-					p.ParserData.Pos++
 					accept = true
 				}
 				if accept {
-					if p.ParserData.Pos >= len(p.ParserData.Data) {
-						accept = false
+					c := p.ParserData.Read()
+					if c >= '0' && c <= '2' {
+						accept = true
 					} else {
-						c := p.ParserData.Data[p.ParserData.Pos]
-						if c >= '0' && c <= '2' {
-							p.ParserData.Pos++
-							accept = true
-						} else {
-							accept = false
-						}
+						p.ParserData.UnRead()
+						accept = false
 					}
 					if accept {
-						if p.ParserData.Pos >= len(p.ParserData.Data) {
-							accept = false
+						c := p.ParserData.Read()
+						if c >= '0' && c <= '7' {
+							accept = true
 						} else {
-							c := p.ParserData.Data[p.ParserData.Pos]
-							if c >= '0' && c <= '7' {
-								p.ParserData.Pos++
-								accept = true
-							} else {
-								accept = false
-							}
+							p.ParserData.UnRead()
+							accept = false
 						}
 						if accept {
-							if p.ParserData.Pos >= len(p.ParserData.Data) {
-								accept = false
+							c := p.ParserData.Read()
+							if c >= '0' && c <= '7' {
+								accept = true
 							} else {
-								c := p.ParserData.Data[p.ParserData.Pos]
-								if c >= '0' && c <= '7' {
-									p.ParserData.Pos++
-									accept = true
-								} else {
-									accept = false
-								}
+								p.ParserData.UnRead()
+								accept = false
 							}
 							if accept {
 							}
@@ -1008,44 +956,36 @@ func (p *Peg) Char() bool {
 					}
 				}
 				if !accept {
-					if p.LastError < p.ParserData.Pos {
-						p.LastError = p.ParserData.Pos
+					if p.LastError < p.ParserData.Pos() {
+						p.LastError = p.ParserData.Pos()
 					}
-					p.ParserData.Pos = save
+					p.ParserData.Seek(save)
 				}
 			}
 			if !accept {
 				{
-					save := p.ParserData.Pos
-					if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\\' {
+					save := p.ParserData.Pos()
+					if p.ParserData.Read() != '\\' {
+						p.ParserData.UnRead()
 						accept = false
 					} else {
-						p.ParserData.Pos++
 						accept = true
 					}
 					if accept {
-						if p.ParserData.Pos >= len(p.ParserData.Data) {
-							accept = false
+						c := p.ParserData.Read()
+						if c >= '0' && c <= '7' {
+							accept = true
 						} else {
-							c := p.ParserData.Data[p.ParserData.Pos]
-							if c >= '0' && c <= '7' {
-								p.ParserData.Pos++
-								accept = true
-							} else {
-								accept = false
-							}
+							p.ParserData.UnRead()
+							accept = false
 						}
 						if accept {
-							if p.ParserData.Pos >= len(p.ParserData.Data) {
-								accept = false
+							c := p.ParserData.Read()
+							if c >= '0' && c <= '7' {
+								accept = true
 							} else {
-								c := p.ParserData.Data[p.ParserData.Pos]
-								if c >= '0' && c <= '7' {
-									p.ParserData.Pos++
-									accept = true
-								} else {
-									accept = false
-								}
+								p.ParserData.UnRead()
+								accept = false
 							}
 							accept = true
 							if accept {
@@ -1053,28 +993,21 @@ func (p *Peg) Char() bool {
 						}
 					}
 					if !accept {
-						if p.LastError < p.ParserData.Pos {
-							p.LastError = p.ParserData.Pos
+						if p.LastError < p.ParserData.Pos() {
+							p.LastError = p.ParserData.Pos()
 						}
-						p.ParserData.Pos = save
+						p.ParserData.Seek(save)
 					}
 				}
 				if !accept {
 					{
-						save := p.ParserData.Pos
+						save := p.ParserData.Pos()
 						{
 							accept = true
-							s := p.ParserData.Pos
-							e := s + 2
-							if e > len(p.ParserData.Data) {
+							s := p.ParserData.Pos()
+							if p.ParserData.Read() != '\\' || p.ParserData.Read() != 'u' {
+								p.ParserData.Seek(s)
 								accept = false
-							} else {
-								if p.ParserData.Data[s+0] != '\\' || p.ParserData.Data[s+1] != 'u' {
-									accept = false
-								}
-							}
-							if accept {
-								p.ParserData.Pos += 2
 							}
 						}
 						if accept {
@@ -1092,28 +1025,21 @@ func (p *Peg) Char() bool {
 							}
 						}
 						if !accept {
-							if p.LastError < p.ParserData.Pos {
-								p.LastError = p.ParserData.Pos
+							if p.LastError < p.ParserData.Pos() {
+								p.LastError = p.ParserData.Pos()
 							}
-							p.ParserData.Pos = save
+							p.ParserData.Seek(save)
 						}
 					}
 					if !accept {
 						{
-							save := p.ParserData.Pos
+							save := p.ParserData.Pos()
 							{
 								accept = true
-								s := p.ParserData.Pos
-								e := s + 2
-								if e > len(p.ParserData.Data) {
+								s := p.ParserData.Pos()
+								if p.ParserData.Read() != '\\' || p.ParserData.Read() != 'U' {
+									p.ParserData.Seek(s)
 									accept = false
-								} else {
-									if p.ParserData.Data[s+0] != '\\' || p.ParserData.Data[s+1] != 'U' {
-										accept = false
-									}
-								}
-								if accept {
-									p.ParserData.Pos += 2
 								}
 							}
 							if accept {
@@ -1143,40 +1069,40 @@ func (p *Peg) Char() bool {
 								}
 							}
 							if !accept {
-								if p.LastError < p.ParserData.Pos {
-									p.LastError = p.ParserData.Pos
+								if p.LastError < p.ParserData.Pos() {
+									p.LastError = p.ParserData.Pos()
 								}
-								p.ParserData.Pos = save
+								p.ParserData.Seek(save)
 							}
 						}
 						if !accept {
 							{
-								save := p.ParserData.Pos
-								s := p.ParserData.Pos
-								if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\\' {
+								save := p.ParserData.Pos()
+								s := p.ParserData.Pos()
+								if p.ParserData.Read() != '\\' {
+									p.ParserData.UnRead()
 									accept = false
 								} else {
-									p.ParserData.Pos++
 									accept = true
 								}
-								p.ParserData.Pos = s
+								p.ParserData.Seek(s)
 								p.Root.Discard(s)
 								accept = !accept
 								if accept {
-									if p.ParserData.Pos >= len(p.ParserData.Data) {
+									if p.ParserData.Pos() >= p.ParserData.Len() {
 										accept = false
 									} else {
-										p.ParserData.Pos++
+										p.ParserData.Read()
 										accept = true
 									}
 									if accept {
 									}
 								}
 								if !accept {
-									if p.LastError < p.ParserData.Pos {
-										p.LastError = p.ParserData.Pos
+									if p.LastError < p.ParserData.Pos() {
+										p.LastError = p.ParserData.Pos()
 									}
-									p.ParserData.Pos = save
+									p.ParserData.Seek(save)
 								}
 							}
 							if !accept {
@@ -1187,10 +1113,10 @@ func (p *Peg) Char() bool {
 			}
 		}
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Char"
@@ -1210,53 +1136,41 @@ func (p *Peg) Hex() bool {
 	// Hex           <- [A-Fa-f0-9]
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) {
-			accept = false
+		save := p.ParserData.Pos()
+		c := p.ParserData.Read()
+		if c >= 'A' && c <= 'F' {
+			accept = true
 		} else {
-			c := p.ParserData.Data[p.ParserData.Pos]
-			if c >= 'A' && c <= 'F' {
-				p.ParserData.Pos++
-				accept = true
-			} else {
-				accept = false
-			}
+			p.ParserData.UnRead()
+			accept = false
 		}
 		if !accept {
-			if p.ParserData.Pos >= len(p.ParserData.Data) {
-				accept = false
+			c := p.ParserData.Read()
+			if c >= 'a' && c <= 'f' {
+				accept = true
 			} else {
-				c := p.ParserData.Data[p.ParserData.Pos]
-				if c >= 'a' && c <= 'f' {
-					p.ParserData.Pos++
-					accept = true
-				} else {
-					accept = false
-				}
+				p.ParserData.UnRead()
+				accept = false
 			}
 			if !accept {
-				if p.ParserData.Pos >= len(p.ParserData.Data) {
-					accept = false
+				c := p.ParserData.Read()
+				if c >= '0' && c <= '9' {
+					accept = true
 				} else {
-					c := p.ParserData.Data[p.ParserData.Pos]
-					if c >= '0' && c <= '9' {
-						p.ParserData.Pos++
-						accept = true
-					} else {
-						accept = false
-					}
+					p.ParserData.UnRead()
+					accept = false
 				}
 				if !accept {
 				}
 			}
 		}
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Hex"
@@ -1276,22 +1190,15 @@ func (p *Peg) LEFTARROW() bool {
 	// LEFTARROW     <- "<-" Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		{
 			accept = true
-			s := p.ParserData.Pos
-			e := s + 2
-			if e > len(p.ParserData.Data) {
+			s := p.ParserData.Pos()
+			if p.ParserData.Read() != '<' || p.ParserData.Read() != '-' {
+				p.ParserData.Seek(s)
 				accept = false
-			} else {
-				if p.ParserData.Data[s+0] != '<' || p.ParserData.Data[s+1] != '-' {
-					accept = false
-				}
-			}
-			if accept {
-				p.ParserData.Pos += 2
 			}
 		}
 		if accept {
@@ -1300,17 +1207,17 @@ func (p *Peg) LEFTARROW() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	if accept && start != p.ParserData.Pos {
+	if accept && start != p.ParserData.Pos() {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		p.IgnoreRange.End = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1319,13 +1226,13 @@ func (p *Peg) SLASH() bool {
 	// SLASH         <- '/' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '/' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '/' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1334,17 +1241,17 @@ func (p *Peg) SLASH() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	if accept && start != p.ParserData.Pos {
+	if accept && start != p.ParserData.Pos() {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		p.IgnoreRange.End = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1353,13 +1260,13 @@ func (p *Peg) AND() bool {
 	// AND           <- '&' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '&' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '&' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1368,13 +1275,13 @@ func (p *Peg) AND() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "AND"
@@ -1394,13 +1301,13 @@ func (p *Peg) NOT() bool {
 	// NOT           <- '!' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '!' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '!' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1409,13 +1316,13 @@ func (p *Peg) NOT() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "NOT"
@@ -1435,13 +1342,13 @@ func (p *Peg) QUESTION() bool {
 	// QUESTION      <- '?' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '?' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '?' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1450,13 +1357,13 @@ func (p *Peg) QUESTION() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "QUESTION"
@@ -1476,13 +1383,13 @@ func (p *Peg) STAR() bool {
 	// STAR          <- '*' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '*' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '*' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1491,13 +1398,13 @@ func (p *Peg) STAR() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "STAR"
@@ -1517,13 +1424,13 @@ func (p *Peg) PLUS() bool {
 	// PLUS          <- '+' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '+' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '+' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1532,13 +1439,13 @@ func (p *Peg) PLUS() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "PLUS"
@@ -1558,13 +1465,13 @@ func (p *Peg) OPEN() bool {
 	// OPEN          <- '(' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '(' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '(' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1573,17 +1480,17 @@ func (p *Peg) OPEN() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	if accept && start != p.ParserData.Pos {
+	if accept && start != p.ParserData.Pos() {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		p.IgnoreRange.End = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1592,13 +1499,13 @@ func (p *Peg) CLOSE() bool {
 	// CLOSE         <- ')' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ')' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != ')' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1607,17 +1514,17 @@ func (p *Peg) CLOSE() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	if accept && start != p.ParserData.Pos {
+	if accept && start != p.ParserData.Pos() {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		p.IgnoreRange.End = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1626,13 +1533,13 @@ func (p *Peg) DOT() bool {
 	// DOT           <- '.' Spacing
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '.' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '.' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1641,13 +1548,13 @@ func (p *Peg) DOT() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "DOT"
@@ -1667,12 +1574,12 @@ func (p *Peg) Spacing() bool {
 	// Spacing       <- (Space / Comment)*
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
 		accept = true
 		for accept {
 			{
-				save := p.ParserData.Pos
+				save := p.ParserData.Pos()
 				accept = p.Space()
 				if !accept {
 					accept = p.Comment()
@@ -1680,17 +1587,17 @@ func (p *Peg) Spacing() bool {
 					}
 				}
 				if !accept {
-					p.ParserData.Pos = save
+					p.ParserData.Seek(save)
 				}
 			}
 		}
 		accept = true
 	}
-	if accept && start != p.ParserData.Pos {
+	if accept && start != p.ParserData.Pos() {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		p.IgnoreRange.End = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1699,13 +1606,13 @@ func (p *Peg) Comment() bool {
 	// Comment       <- '#' (!EndOfLine .)* EndOfLine
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '#' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != '#' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if accept {
@@ -1713,27 +1620,27 @@ func (p *Peg) Comment() bool {
 				accept = true
 				for accept {
 					{
-						save := p.ParserData.Pos
-						s := p.ParserData.Pos
+						save := p.ParserData.Pos()
+						s := p.ParserData.Pos()
 						accept = p.EndOfLine()
-						p.ParserData.Pos = s
+						p.ParserData.Seek(s)
 						p.Root.Discard(s)
 						accept = !accept
 						if accept {
-							if p.ParserData.Pos >= len(p.ParserData.Data) {
+							if p.ParserData.Pos() >= p.ParserData.Len() {
 								accept = false
 							} else {
-								p.ParserData.Pos++
+								p.ParserData.Read()
 								accept = true
 							}
 							if accept {
 							}
 						}
 						if !accept {
-							if p.LastError < p.ParserData.Pos {
-								p.LastError = p.ParserData.Pos
+							if p.LastError < p.ParserData.Pos() {
+								p.LastError = p.ParserData.Pos()
 							}
-							p.ParserData.Pos = save
+							p.ParserData.Seek(save)
 						}
 					}
 				}
@@ -1746,17 +1653,17 @@ func (p *Peg) Comment() bool {
 			}
 		}
 		if !accept {
-			if p.LastError < p.ParserData.Pos {
-				p.LastError = p.ParserData.Pos
+			if p.LastError < p.ParserData.Pos() {
+				p.LastError = p.ParserData.Pos()
 			}
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	if accept && start != p.ParserData.Pos {
+	if accept && start != p.ParserData.Pos() {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		p.IgnoreRange.End = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1765,20 +1672,20 @@ func (p *Peg) Space() bool {
 	// Space         <- ' ' / '\t' / EndOfLine
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
-		if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ' ' {
+		save := p.ParserData.Pos()
+		if p.ParserData.Read() != ' ' {
+			p.ParserData.UnRead()
 			accept = false
 		} else {
-			p.ParserData.Pos++
 			accept = true
 		}
 		if !accept {
-			if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\t' {
+			if p.ParserData.Read() != '\t' {
+				p.ParserData.UnRead()
 				accept = false
 			} else {
-				p.ParserData.Pos++
 				accept = true
 			}
 			if !accept {
@@ -1788,14 +1695,14 @@ func (p *Peg) Space() bool {
 			}
 		}
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	if accept && start != p.ParserData.Pos {
+	if accept && start != p.ParserData.Pos() {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		p.IgnoreRange.End = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1804,36 +1711,29 @@ func (p *Peg) EndOfLine() bool {
 	// EndOfLine     <- "\r\n" / '\n' / '\r'
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
+	start := p.ParserData.Pos()
 	{
-		save := p.ParserData.Pos
+		save := p.ParserData.Pos()
 		{
 			accept = true
-			s := p.ParserData.Pos
-			e := s + 2
-			if e > len(p.ParserData.Data) {
+			s := p.ParserData.Pos()
+			if p.ParserData.Read() != '\r' || p.ParserData.Read() != '\n' {
+				p.ParserData.Seek(s)
 				accept = false
-			} else {
-				if p.ParserData.Data[s+0] != '\r' || p.ParserData.Data[s+1] != '\n' {
-					accept = false
-				}
-			}
-			if accept {
-				p.ParserData.Pos += 2
 			}
 		}
 		if !accept {
-			if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\n' {
+			if p.ParserData.Read() != '\n' {
+				p.ParserData.UnRead()
 				accept = false
 			} else {
-				p.ParserData.Pos++
 				accept = true
 			}
 			if !accept {
-				if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != '\r' {
+				if p.ParserData.Read() != '\r' {
+					p.ParserData.UnRead()
 					accept = false
 				} else {
-					p.ParserData.Pos++
 					accept = true
 				}
 				if !accept {
@@ -1841,14 +1741,14 @@ func (p *Peg) EndOfLine() bool {
 			}
 		}
 		if !accept {
-			p.ParserData.Pos = save
+			p.ParserData.Seek(save)
 		}
 	}
-	if accept && start != p.ParserData.Pos {
+	if accept && start != p.ParserData.Pos() {
 		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 			p.IgnoreRange.Start = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos
+		p.IgnoreRange.End = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1857,18 +1757,18 @@ func (p *Peg) EndOfFile() bool {
 	// EndOfFile     <- !.
 	accept := false
 	accept = true
-	start := p.ParserData.Pos
-	s := p.ParserData.Pos
-	if p.ParserData.Pos >= len(p.ParserData.Data) {
+	start := p.ParserData.Pos()
+	s := p.ParserData.Pos()
+	if p.ParserData.Pos() >= p.ParserData.Len() {
 		accept = false
 	} else {
-		p.ParserData.Pos++
+		p.ParserData.Read()
 		accept = true
 	}
-	p.ParserData.Pos = s
+	p.ParserData.Seek(s)
 	p.Root.Discard(s)
 	accept = !accept
-	end := p.ParserData.Pos
+	end := p.ParserData.Pos()
 	if accept {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "EndOfFile"

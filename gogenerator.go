@@ -55,9 +55,9 @@ func (g *GoGenerator) SetCustomActions(actions []CustomAction) {
 
 func (g *GoGenerator) AddNode(data, defName string) string {
 	ret := `accept = true
-start := p.ParserData.Pos
+start := p.ParserData.Pos()
 ` + g.Call(data) + `
-end := p.ParserData.Pos
+end := p.ParserData.Pos()
 if accept {
 `
 	if g.calledP || true {
@@ -86,13 +86,13 @@ if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
 
 func (g *GoGenerator) Ignore(data string) string {
 	return `accept = true
-start := p.ParserData.Pos
+start := p.ParserData.Pos()
 ` + g.Call(data) + `
-if accept && start != p.ParserData.Pos {
+if accept && start != p.ParserData.Pos() {
 	if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
 		p.IgnoreRange.Start = start
 	}
-	p.IgnoreRange.End = p.ParserData.Pos
+	p.IgnoreRange.End = p.ParserData.Pos()
 }
 `
 }
@@ -150,8 +150,8 @@ defer func() {
 			data = "accept := " + data
 		}
 		indenter.Add(`var (
-	pos = p.ParserData.Pos
-	l   = len(p.ParserData.Data)
+	pos = p.ParserData.Pos()
+	l   = p.ParserData.Len()
 )
 `)
 		if g.s.DebugLevel >= DebugLevelEnterExit {
@@ -164,23 +164,23 @@ fm.Inc()
 		if g.s.DebugLevel >= DebugLevelEnterExit {
 			indenter.Add(`
 fm.Dec()
-if !accept && p.ParserData.Pos != pos {
-	log.Fatalln("` + defName + `", accept, ", ", pos, ", ", p.ParserData.Pos)
+if !accept && p.ParserData.Pos() != pos {
+	log.Fatalln("` + defName + `", accept, ", ", pos, ", ", p.ParserData.Pos())
 }
 `)
 		}
 		if g.s.DebugLevel > DebugLevelNone {
 			indenter.Add(`
-p2 := p.ParserData.Pos
+p2 := p.ParserData.Pos()
 data := ""
-if p2 < len(p.ParserData.Data) {
-	data = string(p.ParserData.Data[pos:p2])
+if p2 < p.ParserData.Len() {
+	data = p.ParserData.Substring(pos,p2)
 }
 `)
 			if g.s.DebugLevel < DebugLevelEnterExit {
 				indenter.Inc("if accept {\n")
 			}
-			indenter.Add(`log.Println(fm.Level()+"` + defName + ` returned: ", accept, ", ", pos, ", ", p.ParserData.Pos, ", ", l, string(data))` + "\n")
+			indenter.Add(`log.Println(fm.Level()+"` + defName + ` returned: ", accept, ", ", pos, ", ", p.ParserData.Pos(), ", ", l, string(data))` + "\n")
 			if g.s.DebugLevel < DebugLevelEnterExit {
 				indenter.Dec("}")
 			}
@@ -241,24 +241,18 @@ func (g *GoGenerator) MakeParserCall(value string) string {
 
 func (g *GoGenerator) CheckInRange(a, b string) string {
 	var (
-		extra1, extra2 string
+		extra2 string
 	)
 	if g.s.DebugLevel >= DebugLevelAccept {
-		extra1 = `
-	log.Println(fm.Level()+"accept = false; out of range")`
 		extra2 = `
 		log.Printf(fm.Level()+"accept = false; character %c not range", c)`
 	}
-	return `if p.ParserData.Pos >= len(p.ParserData.Data) {
-	accept = false` + extra1 + `
+	return `c := p.ParserData.Read()
+if c >= '` + a + `' && c <= '` + b + `' {
+	accept = true
 } else {
-	c := p.ParserData.Data[p.ParserData.Pos]
-	if c >= '` + a + `' && c <= '` + b + `' {
-		p.ParserData.Pos++
-		accept = true
-	} else {
-		accept = false` + extra2 + `
-	}
+	p.ParserData.UnRead()
+	accept = false` + extra2 + `
 }`
 }
 
@@ -283,21 +277,20 @@ func (g *GoGenerator) CheckInSet(a string) string {
 	}
 	return `{
 	accept = false
-	if p.ParserData.Pos < len(p.ParserData.Data) {
-		c := p.ParserData.Data[p.ParserData.Pos]
-		if ` + tests + ` {
-			p.ParserData.Pos++
-			accept = true
-		}
+	c := p.ParserData.Read()
+	if ` + tests + ` {
+		accept = true
+	} else {
+		p.ParserData.UnRead()
 	}
 }`
 }
 
 func (g *GoGenerator) CheckAnyChar() string {
-	return `if p.ParserData.Pos >= len(p.ParserData.Data) {
+	return `if p.ParserData.Pos() >= p.ParserData.Len() {
 	accept = false
 } else {
-	p.ParserData.Pos++
+	p.ParserData.Read()
 	accept = true
 }`
 }
@@ -312,17 +305,17 @@ func (g *GoGenerator) CheckNext(a string) string {
 	}
 
 	if a[0] == '\'' {
-		return `if p.ParserData.Pos >= len(p.ParserData.Data) || p.ParserData.Data[p.ParserData.Pos] != ` + a + ` {
+		return `if p.ParserData.Read() != ` + a + ` {
+	p.ParserData.UnRead()
 	accept = false` + extra1 + `
 } else {
-	p.ParserData.Pos++
 	accept = true
 }`
 	}
 	a = a[1 : len(a)-1]
 	if g.s.DebugLevel >= DebugLevelAccept {
 		extra2 = fmt.Sprintf(`
-	log.Printf(fm.Level()+"accept = false; expected %s, have %%s", string(p.ParserData.Data[s:e]))`, a)
+	log.Printf(fm.Level()+"accept = false; expected %s, have %%s", p.ParserData.Substring(s,e))`, a)
 	}
 	tests := ""
 	pos := 0
@@ -341,37 +334,30 @@ func (g *GoGenerator) CheckNext(a string) string {
 		if c2 == "'" {
 			c2 = "\\'"
 		}
-		tests += fmt.Sprintf("p.ParserData.Data[s+%d] != '%s'", pos, c2)
+		tests += fmt.Sprintf("p.ParserData.Read() != '%s'", c2)
 	}
 	return fmt.Sprintf(`{
 	accept = true
-	s := p.ParserData.Pos
-	e := s + %d
-	if e > len(p.ParserData.Data) {
+	s := p.ParserData.Pos()
+	if %s {
+		p.ParserData.Seek(s)
 		accept = false%s
-	} else {
-		if %s {
-			accept = false%s
-		}
 	}
-	if accept {
-		p.ParserData.Pos += %d
-	}
-}`, pos, extra1, tests, extra2, pos)
+}`, tests, extra2)
 }
 
 func (g *GoGenerator) AssertNot(a string) string {
-	return `s := p.ParserData.Pos
+	return `s := p.ParserData.Pos()
 ` + g.Call(a) + `
-p.ParserData.Pos = s
+p.ParserData.Seek(s)
 p.Root.Discard(s)
 accept = !accept`
 }
 
 func (g *GoGenerator) AssertAnd(a string) string {
-	return `s := p.ParserData.Pos
+	return `s := p.ParserData.Pos()
 ` + g.Call(a) + `
-p.ParserData.Pos = s
+p.ParserData.Seek(s)
 p.Root.Discard(s)`
 }
 
@@ -395,10 +381,10 @@ func (g *GoGenerator) OneOrMore(a string) string {
 	var cf CodeFormatter
 	cf.Add("{\n")
 	cf.Inc()
-	cf.Add(`save := p.ParserData.Pos
+	cf.Add(`save := p.ParserData.Pos()
 ` + g.Call(a) + `
 if !accept {
-	p.ParserData.Pos = save
+	p.ParserData.Seek(save)
 } else {
 	for accept {
 `)
@@ -449,21 +435,21 @@ func (g *GoGenerator) BeginGroup(requireAll bool) Group {
 	if requireAll {
 		r := needAllGroup{g: g}
 		r.cf.Add(`{
-	save := p.ParserData.Pos
+	save := p.ParserData.Pos()
 `)
 		r.cf.Inc()
 		return &r
 	}
 	r := needOneGroup{g: g}
 	r.cf.Add(`{
-	save := p.ParserData.Pos
+	save := p.ParserData.Pos()
 `)
 	r.cf.Inc()
 	return &r
 }
 func (g *GoGenerator) UpdateError(msg string) string {
-	return `if p.LastError < p.ParserData.Pos {
-	p.LastError = p.ParserData.Pos
+	return `if p.LastError < p.ParserData.Pos() {
+	p.LastError = p.ParserData.Pos()
 }`
 	// return "{\n\te := fmt.Sprintf(`Expected " + msg + " near %d`, p.ParserData.Pos)\n\tif len(p.LastError) != 0 {\n\t\te = e + \"\\n\" + p.LastError\n\t}\n\tp.LastError = e\n}"
 }
@@ -477,7 +463,7 @@ func (g *GoGenerator) EndGroup(gr Group) string {
 		}
 		t.cf.Add("if !accept {\n")
 		t.cf.Inc()
-		t.cf.Add(g.UpdateError("TODO") + "\np.ParserData.Pos = save\n")
+		t.cf.Add(g.UpdateError("TODO") + "\np.ParserData.Seek(save)\n")
 		t.cf.Dec()
 		t.cf.Add("}\n")
 		t.cf.Dec()
@@ -488,7 +474,7 @@ func (g *GoGenerator) EndGroup(gr Group) string {
 			t.cf.Dec()
 			t.cf.Add("}\n")
 		}
-		t.cf.Add("if !accept {\n\tp.ParserData.Pos = save\n}\n")
+		t.cf.Add("if !accept {\n\tp.ParserData.Seek(save)\n}\n")
 		t.cf.Dec()
 		t.cf.Add("}")
 		return t.cf.String()
@@ -533,11 +519,7 @@ func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	imports += ")\n"
 
 	g.output = g.s.Header + "\n"
-	members = append(members, `ParserData struct {
-		Pos  int
-		Data []rune
-	}
-`, "IgnoreRange Range",
+	members = append(members, "ParserData Reader", "IgnoreRange Range",
 		"Root        Node",
 		"LastError   int")
 	g.output += fmt.Sprintln("package " + strings.ToLower(g.s.Name) + imports + "\ntype " + g.s.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
@@ -586,13 +568,12 @@ func (t *TotHeat) String() (ret string) {
 }
 
 func (p *` + g.s.Name + `) SetData(data string) {
-	p.ParserData.Data = []rune(data)
+	p.ParserData = NewReader(data)
 `
 	if g.s.Heatmap {
 		g.output += "	p.Heatmap = make(map[string]Heat)\n"
 	}
-	g.output += `	p.ParserData.Pos = 0
-	p.Root = Node{Name: "` + g.s.Name + `", P: p}
+	g.output += `	p.Root = Node{Name: "` + g.s.Name + `", P: p}
 	p.IgnoreRange = Range{}
 	p.LastError = 0
 }
@@ -605,39 +586,18 @@ func (p *` + g.s.Name + `) Parse(data string) bool {
 }
 
 func (p *` + g.s.Name + `) Data(start, end int) string {
-	l := len(p.ParserData.Data)
-	if l == 0 {
-		return ""
-	}
-	if start < 0 {
-		start = 0
-	}
-	if end > l {
-		end = l
-	}
-	if start > end {
-		return ""
-	}
-	return string(p.ParserData.Data[start:end])
+	return p.ParserData.Substring(start, end)
 }
 
 func (p *` + g.s.Name + `) Error() Error {
 	errstr := ""
+	line, column := p.ParserData.LineCol(p.LastError)
 
-	line := 1
-	column := 1
-	for _, r := range p.ParserData.Data[:p.LastError] {
-		column++
-		if r == '\n' {
-			line++
-			column = 1
-		}
-	}
-
-	if p.LastError == len(p.ParserData.Data) {
+	if p.LastError == p.ParserData.Len() {
 		errstr = "Unexpected EOF"
 	} else {
-		if r := p.ParserData.Data[p.LastError]; r == '\r' || r == '\n' {
+		p.ParserData.Seek(p.LastError)
+		if r := p.ParserData.Read(); r == '\r' || r == '\n' {
 			errstr = "Unexpected new line"
 		} else {
 			errstr = "Unexpected " + string(r)
@@ -746,7 +706,7 @@ func TestParser(t *testing.T) {
 		} else {
 			` + dumptree_s + `
 			` + heatmap_s + `
-			if root.Range.End != len(p.ParserData.Data) {
+			if root.Range.End != p.ParserData.Len() {
 				t.Fatalf("Parsing didn't finish: %v\n%s", root, p.Error())
 			}
 		}
