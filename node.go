@@ -27,12 +27,14 @@ package parser
 
 import (
 	"fmt"
+	"sort"
 )
 
 type (
 	Range struct {
 		Start, End int
 	}
+	RangeSet []Range
 
 	DataSource interface {
 		Data(start, end int) string
@@ -45,6 +47,27 @@ type (
 		P        DataSource
 	}
 )
+
+func (r *Range) Intersect(other Range) (ret Range, intersects bool) {
+	if r.Inside(other.Start) {
+		ret.Start = other.Start
+		if r.End < other.End {
+			ret.End = r.End
+		} else {
+			ret.End = other.End
+		}
+		intersects = true
+	} else if r.Inside(other.End) {
+		ret.End = other.End
+		if r.Start > other.Start {
+			ret.Start = r.Start
+		} else {
+			ret.Start = other.Start
+		}
+		intersects = true
+	}
+	return
+}
 
 func (r *Range) Contains(other Range) bool {
 	return r.Start <= other.Start && r.End >= other.End
@@ -87,6 +110,54 @@ func (r *Range) Clip(ignore Range) (clipped bool) {
 		r.End = r.Start
 	}
 	return clipped
+}
+
+func (r *Range) Xor(other Range) (ret []Range) {
+	if r.Inside(other.Start) {
+		ret = append(ret, Range{r.Start, other.Start})
+	}
+	if r.Inside(other.End) {
+		ret = append(ret, Range{other.End, r.End})
+	}
+	if len(ret) == 0 && !other.Contains(*r) {
+		ret = append(ret, *r)
+	}
+	return
+}
+
+func (r *RangeSet) Len() int {
+	return len(*r)
+}
+func (r *RangeSet) Swap(i, j int) {
+	(*r)[i], (*r)[j] = (*r)[j], (*r)[i]
+}
+func (r *RangeSet) Less(i, j int) bool {
+	return (*r)[i].Start < (*r)[j].Start
+}
+
+func (r *RangeSet) Add(r2 Range) {
+	added := false
+	for i := 0; i < len(*r); i++ {
+		if (*r)[i].Join(r2) {
+			added = true
+		}
+		for ; added && i+1 < r.Len() && (*r)[i].Join((*r)[i+1]); i++ {
+			*r = append((*r)[:i+1], (*r)[i+2:]...)
+		}
+	}
+	if !added {
+		*r = append(*r, r2)
+		sort.Sort(r)
+	}
+}
+
+func (r RangeSet) Xor(r2 Range) (ret RangeSet) {
+	for i := 0; i < len(r); i++ {
+		for _, xor := range r[i].Xor(r2) {
+			ret.Add(xor)
+		}
+	}
+	return
 }
 
 func (n *Node) format(indent string) string {

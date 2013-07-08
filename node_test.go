@@ -93,6 +93,62 @@ func TestRangeJoin(t *testing.T) {
 	}
 }
 
+func TestRangeXor(t *testing.T) {
+	tests := []struct {
+		A, B Range
+		Out  []Range
+	}{
+		{Range{10, 20}, Range{0, 5}, []Range{{10, 20}}},
+		{Range{10, 20}, Range{12, 15}, []Range{{10, 12}, {15, 20}}},
+		{Range{10, 20}, Range{5, 15}, []Range{{15, 20}}},
+		{Range{10, 20}, Range{15, 20}, []Range{{10, 15}}},
+	}
+	for i, test := range tests {
+		if res := test.A.Xor(test.B); !reflect.DeepEqual(res, test.Out) {
+			t.Errorf("Test %d; Expected %v, got: %v", i, test.Out, res)
+		}
+	}
+}
+
+func TestRangeSetXor(t *testing.T) {
+	tests := []struct {
+		A, B Range
+		Out  RangeSet
+	}{
+		{Range{10, 20}, Range{0, 5}, []Range{{10, 20}}},
+		{Range{10, 20}, Range{12, 15}, []Range{{10, 12}, {15, 20}}},
+		{Range{10, 20}, Range{5, 15}, []Range{{15, 20}}},
+		{Range{10, 20}, Range{15, 20}, []Range{{10, 15}}},
+	}
+	for i, test := range tests {
+		var rs RangeSet
+		rs.Add(test.A)
+		t.Log(rs)
+		if res := rs.Xor(test.B); !reflect.DeepEqual(res, test.Out) {
+			t.Errorf("Test %d; Expected %v, got: %v", i, test.Out, res)
+		}
+	}
+}
+
+func TestRangeSetAdd(t *testing.T) {
+	tests := []struct {
+		A   RangeSet
+		B   Range
+		Out RangeSet
+	}{
+		{[]Range{{10, 20}}, Range{0, 5}, []Range{{0, 5}, {10, 20}}},
+		{[]Range{{10, 20}}, Range{12, 15}, []Range{{10, 20}}},
+		{[]Range{{10, 20}}, Range{5, 15}, []Range{{5, 20}}},
+		{[]Range{{10, 20}}, Range{15, 25}, []Range{{10, 25}}},
+		{[]Range{{10, 15}, {20, 25}}, Range{12, 23}, []Range{{10, 25}}},
+	}
+	for i, test := range tests {
+		if test.A.Add(test.B); !reflect.DeepEqual(test.A, test.Out) {
+			t.Errorf("Test %d; Expected %v, got: %v", i, test.Out, test.A)
+		}
+	}
+}
+
 type ds int
 
 func (s ds) Data(start, end int) string {
