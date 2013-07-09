@@ -112,7 +112,7 @@ func (r *Range) Clip(ignore Range) (clipped bool) {
 	return clipped
 }
 
-func (r *Range) Xor(other Range) (ret []Range) {
+func (r *Range) Cut(other Range) (ret []Range) {
 	if r.Inside(other.Start) {
 		ret = append(ret, Range{r.Start, other.Start})
 	}
@@ -151,9 +151,9 @@ func (r *RangeSet) Add(r2 Range) {
 	}
 }
 
-func (r RangeSet) Xor(r2 Range) (ret RangeSet) {
+func (r RangeSet) Cut(r2 Range) (ret RangeSet) {
 	for i := 0; i < len(r); i++ {
-		for _, xor := range r[i].Xor(r2) {
+		for _, xor := range r[i].Cut(r2) {
 			ret.Add(xor)
 		}
 	}

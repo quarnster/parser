@@ -93,7 +93,7 @@ func TestRangeJoin(t *testing.T) {
 	}
 }
 
-func TestRangeXor(t *testing.T) {
+func TestRangeCut(t *testing.T) {
 	tests := []struct {
 		A, B Range
 		Out  []Range
@@ -104,13 +104,13 @@ func TestRangeXor(t *testing.T) {
 		{Range{10, 20}, Range{15, 20}, []Range{{10, 15}}},
 	}
 	for i, test := range tests {
-		if res := test.A.Xor(test.B); !reflect.DeepEqual(res, test.Out) {
+		if res := test.A.Cut(test.B); !reflect.DeepEqual(res, test.Out) {
 			t.Errorf("Test %d; Expected %v, got: %v", i, test.Out, res)
 		}
 	}
 }
 
-func TestRangeSetXor(t *testing.T) {
+func TestRangeSetCut(t *testing.T) {
 	tests := []struct {
 		A, B Range
 		Out  RangeSet
@@ -124,7 +124,7 @@ func TestRangeSetXor(t *testing.T) {
 		var rs RangeSet
 		rs.Add(test.A)
 		t.Log(rs)
-		if res := rs.Xor(test.B); !reflect.DeepEqual(res, test.Out) {
+		if res := rs.Cut(test.B); !reflect.DeepEqual(res, test.Out) {
 			t.Errorf("Test %d; Expected %v, got: %v", i, test.Out, res)
 		}
 	}
