@@ -641,7 +641,8 @@ func (g *GoGenerator) Finish() error {
 			t.Log(&th)
 			`
 	}
-	test := `package ` + strings.ToLower(g.s.Name) + `
+	if g.s.Testname != "" {
+		test := `package ` + strings.ToLower(g.s.Name) + `
 import (
 	"archive/zip"
 	"io/ioutil"
@@ -725,8 +726,9 @@ func BenchmarkParser(b *testing.B) {
 }
 
 `
-	if err := g.s.WriteFile(ln+"_test.go", test); err != nil {
-		return err
+		if err := g.s.WriteFile(ln+"_test.go", test); err != nil {
+			return err
+		}
 	}
 	return nil
 }

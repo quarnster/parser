@@ -48,10 +48,12 @@ func main() {
 		heatmap   = false
 		ignore    = ""
 		generator = "go"
+		outpath   = ""
 	)
 	flag.StringVar(&ignore, "ignore", ignore, "List of definitions to ignore (not generate nodes for)")
 	flag.StringVar(&pegfile, "peg", pegfile, "Pegfile for which to generate a parser for")
 	flag.StringVar(&testfile, "testfile", testfile, "Test file to be used in testing")
+	flag.StringVar(&outpath, "outpath", outpath, "Destination directory path")
 	flag.BoolVar(&bench, "bench", bench, "Whether to run a benchmark test or not")
 	flag.IntVar(&debug, "debug", debug, "The desired debug level the generated parser will use")
 	flag.BoolVar(&dumptree, "dumptree", dumptree, "Whether to make the generated parser spit out the generated tree")
@@ -59,7 +61,7 @@ func main() {
 	flag.BoolVar(&heatmap, "heatmap", heatmap, "Whether to generate a heatmap or not")
 	flag.StringVar(&generator, "generator", generator, "Which generator to use")
 	flag.Parse()
-	if pegfile == "" || testfile == "" {
+	if pegfile == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -104,9 +106,12 @@ func main() {
 			}
 
 			//			gen.AddDebugLogging = debug
-			root := name
-			if generator != "go" {
-				root += "_" + generator
+			root := outpath
+			if root == "" {
+				root = name
+				if generator != "go" {
+					root += "_" + generator
+				}
 			}
 			root += "/"
 			gen.SetCustomActions(customActions)
