@@ -27,11 +27,12 @@ package peg
 
 import (
 	. "github.com/quarnster/parser"
+	"github.com/quarnster/util/text"
 )
 
 type Peg struct {
-	ParserData Reader
-	IgnoreRange Range
+	ParserData  Reader
+	IgnoreRange text.Region
 	Root        Node
 	LastError   int
 }
@@ -43,7 +44,7 @@ func (p *Peg) RootNode() *Node {
 func (p *Peg) SetData(data string) {
 	p.ParserData = NewReader(data)
 	p.Root = Node{Name: "Peg", P: p}
-	p.IgnoreRange = Range{}
+	p.IgnoreRange = text.Region{}
 	p.LastError = 0
 }
 
@@ -114,10 +115,10 @@ func (p *Peg) Grammar() bool {
 		}
 	}
 	if accept && start != p.ParserData.Pos() {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
+		if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+			p.IgnoreRange.A = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos()
+		p.IgnoreRange.B = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -150,13 +151,13 @@ func (p *Peg) Definition() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Definition"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -206,13 +207,13 @@ func (p *Peg) Expression() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Expression"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -239,13 +240,13 @@ func (p *Peg) Sequence() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Sequence"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -287,13 +288,13 @@ func (p *Peg) Prefix() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Prefix"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -338,13 +339,13 @@ func (p *Peg) Suffix() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Suffix"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -418,13 +419,13 @@ func (p *Peg) Primary() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Primary"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -463,13 +464,13 @@ func (p *Peg) Identifier() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Identifier"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -702,13 +703,13 @@ func (p *Peg) Literal() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Literal"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -811,13 +812,13 @@ func (p *Peg) Class() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Class"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -866,13 +867,13 @@ func (p *Peg) Range() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Range"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -1121,13 +1122,13 @@ func (p *Peg) Char() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Char"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -1175,13 +1176,13 @@ func (p *Peg) Hex() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "Hex"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -1214,10 +1215,10 @@ func (p *Peg) LEFTARROW() bool {
 		}
 	}
 	if accept && start != p.ParserData.Pos() {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
+		if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+			p.IgnoreRange.A = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos()
+		p.IgnoreRange.B = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1248,10 +1249,10 @@ func (p *Peg) SLASH() bool {
 		}
 	}
 	if accept && start != p.ParserData.Pos() {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
+		if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+			p.IgnoreRange.A = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos()
+		p.IgnoreRange.B = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1286,13 +1287,13 @@ func (p *Peg) AND() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "AND"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -1327,13 +1328,13 @@ func (p *Peg) NOT() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "NOT"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -1368,13 +1369,13 @@ func (p *Peg) QUESTION() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "QUESTION"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -1409,13 +1410,13 @@ func (p *Peg) STAR() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "STAR"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -1450,13 +1451,13 @@ func (p *Peg) PLUS() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "PLUS"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -1487,10 +1488,10 @@ func (p *Peg) OPEN() bool {
 		}
 	}
 	if accept && start != p.ParserData.Pos() {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
+		if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+			p.IgnoreRange.A = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos()
+		p.IgnoreRange.B = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1521,10 +1522,10 @@ func (p *Peg) CLOSE() bool {
 		}
 	}
 	if accept && start != p.ParserData.Pos() {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
+		if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+			p.IgnoreRange.A = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos()
+		p.IgnoreRange.B = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1559,13 +1560,13 @@ func (p *Peg) DOT() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "DOT"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }
@@ -1594,10 +1595,10 @@ func (p *Peg) Spacing() bool {
 		accept = true
 	}
 	if accept && start != p.ParserData.Pos() {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
+		if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+			p.IgnoreRange.A = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos()
+		p.IgnoreRange.B = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1660,10 +1661,10 @@ func (p *Peg) Comment() bool {
 		}
 	}
 	if accept && start != p.ParserData.Pos() {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
+		if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+			p.IgnoreRange.A = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos()
+		p.IgnoreRange.B = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1699,10 +1700,10 @@ func (p *Peg) Space() bool {
 		}
 	}
 	if accept && start != p.ParserData.Pos() {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
+		if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+			p.IgnoreRange.A = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos()
+		p.IgnoreRange.B = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1745,10 +1746,10 @@ func (p *Peg) EndOfLine() bool {
 		}
 	}
 	if accept && start != p.ParserData.Pos() {
-		if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-			p.IgnoreRange.Start = start
+		if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+			p.IgnoreRange.A = start
 		}
-		p.IgnoreRange.End = p.ParserData.Pos()
+		p.IgnoreRange.B = p.ParserData.Pos()
 	}
 	return accept
 }
@@ -1773,13 +1774,13 @@ func (p *Peg) EndOfFile() bool {
 		node := p.Root.Cleanup(start, end)
 		node.Name = "EndOfFile"
 		node.P = p
-		node.Range.Clip(p.IgnoreRange)
+		node.Range = node.Range.Clip(p.IgnoreRange)
 		p.Root.Append(node)
 	} else {
 		p.Root.Discard(start)
 	}
-	if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-		p.IgnoreRange = Range{}
+	if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+		p.IgnoreRange = text.Region{}
 	}
 	return accept
 }

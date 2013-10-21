@@ -64,21 +64,21 @@ if accept {
 		ret += `	node := p.Root.Cleanup(start, end)
 	node.Name = "` + defName + `"
 	node.P = p
-	node.Range.Clip(p.IgnoreRange)
+	node.Range = node.Range.Clip(p.IgnoreRange)
 	p.Root.Append(node)
 } else {
 	p.Root.Discard(start)`
 	} else {
-		ret += `	node := &Node{Range:Range{start,end}}
+		ret += `	node := &Node{Range:text.Region{start,end}}
 	node.Name = "` + defName + `"
 	node.P = p
-	node.Range.Clip(p.IgnoreRange)
+	node.Range = node.Range.Clip(p.IgnoreRange)
 	p.Root.Append(node)`
 	}
 	ret += `
 }
-if p.IgnoreRange.Start >= end || p.IgnoreRange.End <= start {
-	p.IgnoreRange = Range{}
+if p.IgnoreRange.A >= end || p.IgnoreRange.B <= start {
+	p.IgnoreRange = text.Region{}
 }
 `
 	return ret
@@ -89,10 +89,10 @@ func (g *GoGenerator) Ignore(data string) string {
 start := p.ParserData.Pos()
 ` + g.Call(data) + `
 if accept && start != p.ParserData.Pos() {
-	if start < p.IgnoreRange.Start || p.IgnoreRange.Start == 0 {
-		p.IgnoreRange.Start = start
+	if start < p.IgnoreRange.A || p.IgnoreRange.A == 0 {
+		p.IgnoreRange.A = start
 	}
-	p.IgnoreRange.End = p.ParserData.Pos()
+	p.IgnoreRange.B = p.ParserData.Pos()
 }
 `
 }
@@ -503,7 +503,12 @@ func (g *GoGenerator) Call(value string) string {
 
 func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	g.s = s
-	imports := "\n\nimport (\n\t. \"github.com/quarnster/parser\"\n"
+	imports := `
+
+import (
+	. "github.com/quarnster/parser"
+	"github.com/quarnster/util/text"
+`
 	impList := g.Imports
 	members := g.ParserVariables
 	if g.s.Heatmap {
@@ -519,7 +524,7 @@ func (g *GoGenerator) Begin(s GeneratorSettings) error {
 	imports += ")\n"
 
 	g.output = g.s.Header + "\n"
-	members = append(members, "ParserData Reader", "IgnoreRange Range",
+	members = append(members, "ParserData  Reader", "IgnoreRange text.Region",
 		"Root        Node",
 		"LastError   int")
 	g.output += fmt.Sprintln("package " + strings.ToLower(g.s.Name) + imports + "\ntype " + g.s.Name + " struct {\n\t" + strings.Join(members, "\n\t") + "\n}\n")
@@ -574,7 +579,7 @@ func (p *` + g.s.Name + `) SetData(data string) {
 		g.output += "	p.Heatmap = make(map[string]Heat)\n"
 	}
 	g.output += `	p.Root = Node{Name: "` + g.s.Name + `", P: p}
-	p.IgnoreRange = Range{}
+	p.IgnoreRange = text.Region{}
 	p.LastError = 0
 }
 
@@ -707,7 +712,7 @@ func TestParser(t *testing.T) {
 		} else {
 			` + dumptree_s + `
 			` + heatmap_s + `
-			if root.Range.End != p.ParserData.Len() {
+			if root.Range.B != p.ParserData.Len() {
 				t.Fatalf("Parsing didn't finish: %v\n%s", root, p.Error())
 			}
 		}

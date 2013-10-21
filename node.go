@@ -27,144 +27,27 @@ package parser
 
 import (
 	"fmt"
-	"sort"
+	"github.com/quarnster/util/text"
 )
 
 type (
-	Range struct {
-		Start, End int
-	}
-	RangeSet []Range
-
 	DataSource interface {
 		Data(start, end int) string
 	}
 
 	Node struct {
-		Range    Range
+		Range    text.Region
 		Name     string
 		Children []*Node
 		P        DataSource
 	}
 )
 
-func (r *Range) Intersect(other Range) (ret Range, intersects bool) {
-	if r.Inside(other.Start) {
-		ret.Start = other.Start
-		if r.End < other.End {
-			ret.End = r.End
-		} else {
-			ret.End = other.End
-		}
-		intersects = true
-	} else if r.Inside(other.End) {
-		ret.End = other.End
-		if r.Start > other.Start {
-			ret.Start = r.Start
-		} else {
-			ret.Start = other.Start
-		}
-		intersects = true
-	}
-	return
-}
-
-func (r *Range) Contains(other Range) bool {
-	return r.Start <= other.Start && r.End >= other.End
-}
-
-func (r *Range) Inside(x int) bool {
-	return x >= r.Start && x < r.End
-}
-
-func (r *Range) Join(other Range) (could_join bool) {
-	mi, ma := r, &other
-	if mi.Start > ma.Start {
-		mi, ma = ma, mi
-	}
-	if could_join = mi.End == ma.Start || mi.Inside(ma.Start); could_join {
-		r.Start = mi.Start
-		if mi.End < ma.End {
-			r.End = ma.End
-		} else {
-			r.End = mi.End
-		}
-	}
-	return
-}
-
-func (r *Range) Clip(ignore Range) (clipped bool) {
-	if ignore.Contains(*r) {
-		// this range is a subrange within the ignore range
-		return false
-	}
-	if r.Start >= ignore.Start && r.Start < ignore.End {
-		clipped = true
-		r.Start = ignore.End
-	}
-	if r.End >= ignore.Start && r.End <= ignore.End {
-		clipped = true
-		r.End = ignore.Start
-	}
-	if r.End < r.Start {
-		r.End = r.Start
-	}
-	return clipped
-}
-
-func (r *Range) Cut(other Range) (ret []Range) {
-	if r.Inside(other.Start) {
-		ret = append(ret, Range{r.Start, other.Start})
-	}
-	if r.Inside(other.End) {
-		ret = append(ret, Range{other.End, r.End})
-	}
-	if len(ret) == 0 && !other.Contains(*r) {
-		ret = append(ret, *r)
-	}
-	return
-}
-
-func (r *RangeSet) Len() int {
-	return len(*r)
-}
-func (r *RangeSet) Swap(i, j int) {
-	(*r)[i], (*r)[j] = (*r)[j], (*r)[i]
-}
-func (r *RangeSet) Less(i, j int) bool {
-	return (*r)[i].Start < (*r)[j].Start
-}
-
-func (r *RangeSet) Add(r2 Range) {
-	added := false
-	for i := 0; i < len(*r); i++ {
-		if (*r)[i].Join(r2) {
-			added = true
-		}
-		for ; added && i+1 < r.Len() && (*r)[i].Join((*r)[i+1]); i++ {
-			*r = append((*r)[:i+1], (*r)[i+2:]...)
-		}
-	}
-	if !added {
-		*r = append(*r, r2)
-		sort.Sort(r)
-	}
-}
-
-func (r RangeSet) Cut(r2 Range) (ret RangeSet) {
-	for i := 0; i < len(r); i++ {
-		for _, xor := range r[i].Cut(r2) {
-			ret.Add(xor)
-		}
-	}
-	return
-}
-
 func (n *Node) format(indent string) string {
 	if len(n.Children) == 0 {
-		return indent + fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Start, n.Range.End, n.Name, n.Data())
+		return indent + fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Begin(), n.Range.End(), n.Name, n.Data())
 	}
-	ret := indent + fmt.Sprintf("%d-%d: \"%s\"\n", n.Range.Start, n.Range.End, n.Name)
+	ret := indent + fmt.Sprintf("%d-%d: \"%s\"\n", n.Range.Begin(), n.Range.End(), n.Name)
 	indent += "\t"
 	for _, child := range n.Children {
 		ret += child.format(indent)
@@ -173,7 +56,7 @@ func (n *Node) format(indent string) string {
 }
 
 func (n *Node) Data() string {
-	return n.P.Data(n.Range.Start, n.Range.End)
+	return n.P.Data(n.Range.Begin(), n.Range.End())
 }
 
 func (n *Node) String() string {
@@ -185,7 +68,7 @@ func (n *Node) Discard(pos int) {
 	popIdx := 0
 	for i := back - 1; i >= 0; i-- {
 		node := n.Children[i]
-		if node.Range.End <= pos {
+		if node.Range.End() <= pos {
 			popIdx = i + 1
 			break
 		}
@@ -196,7 +79,7 @@ func (n *Node) Discard(pos int) {
 }
 func (n *Node) Cleanup(pos, end int) *Node {
 	var popped Node
-	popped.Range = Range{pos, end}
+	popped.Range = text.Region{pos, end}
 	back := len(n.Children)
 	popIdx := 0
 	popEnd := back
@@ -209,11 +92,11 @@ func (n *Node) Cleanup(pos, end int) *Node {
 
 	for i := back - 1; i >= 0; i-- {
 		node := n.Children[i]
-		if node.Range.End <= pos {
+		if node.Range.End() <= pos {
 			popIdx = i + 1
 			break
 		}
-		if node.Range.Start > end {
+		if node.Range.Begin() > end {
 			popEnd = i + 1
 		}
 	}
@@ -239,14 +122,14 @@ func (n *Node) Clone() *Node {
 	return &ret
 }
 
-func (n *Node) UpdateRange() Range {
+func (n *Node) UpdateRange() text.Region {
 	for _, child := range n.Children {
 		curr := child.UpdateRange()
-		if curr.Start < n.Range.Start {
-			n.Range.Start = curr.Start
+		if curr.Begin() < n.Range.A {
+			n.Range.A = curr.Begin()
 		}
-		if curr.End > n.Range.End {
-			n.Range.End = curr.End
+		if curr.End() > n.Range.B {
+			n.Range.B = curr.End()
 		}
 	}
 	return n.Range
