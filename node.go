@@ -122,6 +122,13 @@ func (n *Node) Clone() *Node {
 	return &ret
 }
 
+func (n *Node) Adjust(position, delta int) {
+	n.Range.Adjust(position, delta)
+	for _, child := range n.Children {
+		child.Adjust(position, delta)
+	}
+}
+
 func (n *Node) UpdateRange() text.Region {
 	for _, child := range n.Children {
 		curr := child.UpdateRange()
