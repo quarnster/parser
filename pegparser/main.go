@@ -49,17 +49,21 @@ func main() {
 		ignore    = ""
 		generator = "go"
 		outpath   = ""
+		outfile   = ""
+		header    = "default"
 	)
 	flag.StringVar(&ignore, "ignore", ignore, "List of definitions to ignore (not generate nodes for)")
 	flag.StringVar(&pegfile, "peg", pegfile, "Pegfile for which to generate a parser for")
 	flag.StringVar(&testfile, "testfile", testfile, "Test file to be used in testing")
 	flag.StringVar(&outpath, "outpath", outpath, "Destination directory path")
+	flag.StringVar(&outfile, "outfile", outfile, "Destination file")
 	flag.BoolVar(&bench, "bench", bench, "Whether to run a benchmark test or not")
 	flag.IntVar(&debug, "debug", debug, "The desired debug level the generated parser will use")
 	flag.BoolVar(&dumptree, "dumptree", dumptree, "Whether to make the generated parser spit out the generated tree")
 	flag.BoolVar(&notest, "notest", notest, "Whether to test the generated parser")
 	flag.BoolVar(&heatmap, "heatmap", heatmap, "Whether to generate a heatmap or not")
 	flag.StringVar(&generator, "generator", generator, "Which generator to use")
+	flag.StringVar(&header, "header", header, "Header to put at the top of the generated source code")
 	flag.Parse()
 	if pegfile == "" {
 		flag.Usage()
@@ -77,8 +81,11 @@ func main() {
 				log.Println(p.RootNode())
 				log.Println("File didn't finish parsing")
 			}
-			name := filepath.Base(pegfile)
-			name = name[:len(name)-len(filepath.Ext(name))]
+			name := outfile
+			if name == "" {
+				name = filepath.Base(pegfile)
+				name = name[:len(name)-len(filepath.Ext(name))]
+			}
 
 			ignoreFunc := func(g parser.Generator, in string) string {
 				return g.Ignore(in)
@@ -108,7 +115,7 @@ func main() {
 			//			gen.AddDebugLogging = debug
 			root := outpath
 			if root == "" {
-				root = name
+				root = filepath.Dir(pegfile)
 				if generator != "go" {
 					root += "_" + generator
 				}
@@ -116,14 +123,16 @@ func main() {
 			root += "/"
 			gen.SetCustomActions(customActions)
 
-			header := "// This file was generated with the following command:\n// ["
-			for i, a := range os.Args {
-				if i > 0 {
-					header += ", "
+			if header == "default" {
+				header = "// This file was generated with the following command:\n// ["
+				for i, a := range os.Args {
+					if i > 0 {
+						header += ", "
+					}
+					header += `"` + a + `"`
 				}
-				header += `"` + a + `"`
+				header += "]\n"
 			}
-			header += "]\n"
 			s := parser.GeneratorSettings{
 				Header:     header,
 				Name:       strings.ToTitle(name),
