@@ -50,6 +50,7 @@ func main() {
 		generator = "go"
 		outpath   = ""
 		outfile   = ""
+		typename  = ""
 		header    = "default"
 	)
 	flag.StringVar(&ignore, "ignore", ignore, "List of definitions to ignore (not generate nodes for)")
@@ -64,6 +65,7 @@ func main() {
 	flag.BoolVar(&heatmap, "heatmap", heatmap, "Whether to generate a heatmap or not")
 	flag.StringVar(&generator, "generator", generator, "Which generator to use")
 	flag.StringVar(&header, "header", header, "Header to put at the top of the generated source code")
+	flag.StringVar(&typename, "name", typename, "Name of the generated type/namespace/package. By default it'll be based on the name of the .peg-file")
 	flag.Parse()
 	if pegfile == "" {
 		flag.Usage()
@@ -133,10 +135,15 @@ func main() {
 				}
 				header += "]\n"
 			}
+			if typename == "" {
+				typename = filepath.Base(pegfile)
+				typename = strings.ToTitle(typename[:len(typename)-len(filepath.Ext(typename))])
+			}
 			s := parser.GeneratorSettings{
 				Header:     header,
-				Name:       strings.ToTitle(name),
+				Name:       typename,
 				Testname:   testfile,
+				FileName:   outfile,
 				Debug:      dumptree,
 				DebugLevel: parser.DebugLevel(debug),
 				Bench:      bench,

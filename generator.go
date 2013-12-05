@@ -58,6 +58,7 @@ type (
 		Bench      bool
 		Testname   string
 		Name       string
+		FileName   string
 		WriteFile  func(name, data string) error
 		Heatmap    bool
 	}

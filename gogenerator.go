@@ -621,7 +621,10 @@ func (g *GoGenerator) Finish() error {
 		ret = ret[:len(ret)-1]
 	}
 	g.output = ""
-	ln := strings.ToLower(g.s.Name)
+	ln := g.s.FileName
+	if g.s.FileName == "" {
+		ln = strings.ToLower(g.s.Name)
+	}
 	if err := g.s.WriteFile(ln+".go", ret); err != nil {
 		return err
 	}
