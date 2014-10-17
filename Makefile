@@ -21,7 +21,8 @@ clean:
 test:
 	go test github.com/quarnster/parser/json github.com/quarnster/parser/xml github.com/quarnster/parser/peg github.com/quarnster/parser/plistxml github.com/quarnster/parser/ini github.com/quarnster/parser/expression
 
-bench:
+bench: $(PEGS)
 	 go test -bench . github.com/quarnster/parser/json github.com/quarnster/parser/xml github.com/quarnster/parser/peg github.com/quarnster/parser/plistxml github.com/quarnster/parser/ini github.com/quarnster/parser/expression
+
 
 include PegRules.make

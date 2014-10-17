@@ -136,10 +136,9 @@ func (g *CPPGenerator) Begin(s GeneratorSettings) error {
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <tr1/memory>
+#include <memory>
 
 using namespace std;
-using namespace tr1;
 #define TRUE true
 #define FALSE false
 `

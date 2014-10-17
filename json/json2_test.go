@@ -327,8 +327,8 @@ foo
 `: `2,1: Unexpected EOF`}
 
 func TestParserComprehensive(t *testing.T) {
-	var p JSON
 	for k, v := range tests {
+		var p JSON
 		if p.Parse(k) != true {
 			t.Fatalf("Didn't parse correctly: %s", k)
 		} else if p.RootNode().String() != v {
@@ -337,6 +337,7 @@ func TestParserComprehensive(t *testing.T) {
 		}
 	}
 	for k, v := range invalid {
+		var p JSON
 		if p.Parse(k) {
 			root := p.RootNode()
 			if root.Children[len(root.Children)-1].Name == "EndOfFile" {

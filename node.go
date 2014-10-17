@@ -27,7 +27,7 @@ package parser
 
 import (
 	"fmt"
-	"github.com/quarnster/util/text"
+	"github.com/limetext/text"
 )
 
 type (

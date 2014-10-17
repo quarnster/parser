@@ -67,26 +67,68 @@ type (
 		Add(value, name string)
 	}
 
+	Value string
+
+	Context interface {
+	}
+
 	Generator interface {
 		TestCommand() []string
 		SetCustomActions([]CustomAction)
 		AddNode(data, defName string) string
 		Ignore(value string) string
+
+		// Make a call to the given function
 		Call(value string) string
+
 		MakeParserFunction(definitionNode *Node) error
+
+		// Get the name of a parser function for the given
+		// definition
 		MakeParserCall(value string) string
+
+		// Accept and consume input if a character between a and b follows.
+		// Backtracks if it doesn't.
 		CheckInRange(a, b string) string
+
+		// Accept and consume input if any character in the set follows.
+		// Backtracks if it doesn't.
 		CheckInSet(a string) string
+
+		// Accept and consume input if any character follows.
+		// Backtracks if it doesn't.
 		CheckAnyChar() string
+
+		// Accept and consume input if "a" follows.
+		// Backtracks if it doesn't.
 		CheckNext(a string) string
+
+		// Make sure that "a" does not follow, without consuming input
 		AssertNot(a string) string
+
+		// Make sure that "a" follows, without consuming input
 		AssertAnd(a string) string
+
+		// Zero or More occurances of "a" follows
 		ZeroOrMore(a string) string
+
+		// At least one of "a" follows, but more than
+		// one is ok too.
 		OneOrMore(a string) string
+
+		// Might or might not follow once, but pass either way
 		Maybe(a string) string
+
+		// Begin a grouping either requiring all values
+		// to be true, or just one of the values to be true.
 		BeginGroup(requireAll bool) Group
+
+		// End the previously started group
 		EndGroup(g Group) string
+
+		// Called when generation starts
 		Begin(GeneratorSettings) error
+		// Called when generation is done
 		Finish() error
 	}
 	CustomAction struct {
