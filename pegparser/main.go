@@ -39,19 +39,20 @@ import (
 
 func main() {
 	var (
-		pegfile   = ""
-		testfile  = ""
-		bench     = false
-		debug     = 0
-		dumptree  = false
-		notest    = false
-		heatmap   = false
-		ignore    = ""
-		generator = "go"
-		outpath   = ""
-		outfile   = ""
-		typename  = ""
-		header    = "default"
+		pegfile    = ""
+		testfile   = ""
+		bench      = false
+		debug      = 0
+		dumptree   = false
+		notest     = false
+		heatmap    = false
+		ignore     = ""
+		generator  = "go"
+		outpath    = ""
+		outfile    = ""
+		typename   = ""
+		header     = "default"
+		gogenerate = false
 	)
 	flag.StringVar(&ignore, "ignore", ignore, "List of definitions to ignore (not generate nodes for)")
 	flag.StringVar(&pegfile, "peg", pegfile, "Pegfile for which to generate a parser for")
@@ -66,6 +67,7 @@ func main() {
 	flag.StringVar(&generator, "generator", generator, "Which generator to use")
 	flag.StringVar(&header, "header", header, "Header to put at the top of the generated source code")
 	flag.StringVar(&typename, "name", typename, "Name of the generated type/namespace/package. By default it'll be based on the name of the .peg-file")
+	flag.BoolVar(&gogenerate, "gogenerate", gogenerate, "Add a Go 1.4 \"//go:generate\" line to the generated code")
 	flag.Parse()
 	if pegfile == "" {
 		flag.Usage()
@@ -124,16 +126,16 @@ func main() {
 			}
 			root += "/"
 			gen.SetCustomActions(customActions)
-
 			if header == "default" {
-				header = "// This file was generated with the following command:\n// ["
-				for i, a := range os.Args {
-					if i > 0 {
-						header += ", "
-					}
-					header += `"` + a + `"`
+				header = ""
+				gogenerate = true
+			}
+			if gogenerate {
+				header += "//go:generate"
+				for _, a := range os.Args {
+					header += " \"" + strings.Replace(strings.Replace(a, "\n", "\\n", -1), "\"", "\\\"", -1) + `"`
 				}
-				header += "]\n"
+				header += "\n"
 			}
 			if typename == "" {
 				typename = filepath.Base(pegfile)
