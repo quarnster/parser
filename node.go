@@ -26,6 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package parser
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/limetext/text"
 )
@@ -43,16 +44,23 @@ type (
 	}
 )
 
-func (n *Node) format(indent string) string {
+func (n *Node) format(buf *bytes.Buffer, indent string) {
+	buf.WriteString(indent)
+	buf.WriteString(fmt.Sprintf("%d-%d", n.Range.Begin(), n.Range.End()))
+	buf.WriteString(": \"")
+	buf.WriteString(n.Name)
+	buf.WriteString("\"")
 	if len(n.Children) == 0 {
-		return indent + fmt.Sprintf("%d-%d: \"%s\" - Data: \"%s\"\n", n.Range.Begin(), n.Range.End(), n.Name, n.Data())
+		buf.WriteString(" - Data: \"")
+		buf.WriteString(n.Data())
+		buf.WriteString("\"\n")
+		return
 	}
-	ret := indent + fmt.Sprintf("%d-%d: \"%s\"\n", n.Range.Begin(), n.Range.End(), n.Name)
+	buf.WriteRune('\n')
 	indent += "\t"
 	for _, child := range n.Children {
-		ret += child.format(indent)
+		child.format(buf, indent)
 	}
-	return ret
 }
 
 func (n *Node) Data() string {
@@ -60,7 +68,9 @@ func (n *Node) Data() string {
 }
 
 func (n *Node) String() string {
-	return n.format("")
+	buf := bytes.NewBuffer(nil)
+	n.format(buf, "")
+	return buf.String()
 }
 
 func (n *Node) Discard(pos int) {
