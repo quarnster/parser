@@ -1,11 +1,11 @@
 .SUFFIXES: .peg .go
 
 CP = cp
-PEGPARSER =  @echo $$GOPATH/bin/pegparser
+PEGPARSER = @echo $$GOPATH/bin/pegparser
 buildPeg = $(PEGPARSER) "-peg=$(1)" -notest -ignore="$(2)" -testfile="$(3)" -outpath "$(dir $@)" -generator="$(4)"
 
 $(PEGPARSER):
-	go build github.com/quarnster/parser/pegparser
+	go install github.com/quarnster/parser/pegparser
 
 %.go: %.peg $(PEGPARSER)
 	$(call buildPeg,$<,$(ignore_$(subst .go,,$(notdir $@))),$(testfile_$(subst .go,,$(notdir $@))),go)
