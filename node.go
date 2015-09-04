@@ -32,18 +32,27 @@ import (
 )
 
 type (
+	// Generic DataSource interface
 	DataSource interface {
+		// Returns the data between the start and end indices
 		Data(start, end int) string
 	}
 
+	// Node is the base structure used to represent a directed acyclic graph
 	Node struct {
-		Range    text.Region
-		Name     string
+		// The Range this node occupies, as referenced to the DataSource.
+		Range text.Region
+		// The Name of this node.
+		Name string
+		// The Children of this Node.
 		Children []*Node
-		P        DataSource
+		// The DataSource to query when Node.Data is called.
+		P DataSource
 	}
 )
 
+// format is a helper function used by String for recursively
+// indenting and adding string data to the provided "buf".
 func (n *Node) format(buf *bytes.Buffer, indent string) {
 	buf.WriteString(indent)
 	buf.WriteString(fmt.Sprintf("%d-%d", n.Range.Begin(), n.Range.End()))
@@ -63,16 +72,23 @@ func (n *Node) format(buf *bytes.Buffer, indent string) {
 	}
 }
 
+// Queries the DataSource and returns the data for this Node's Range.
 func (n *Node) Data() string {
 	return n.P.Data(n.Range.Begin(), n.Range.End())
 }
 
+// String-function to satisfy the fmt.Stringer interface.
+// Returns an indented string representation of this node
+// and its sub-tree.
+//
+// To get the Data contained within this node, use #Data instead.
 func (n *Node) String() string {
 	buf := bytes.NewBuffer(nil)
 	n.format(buf, "")
 	return buf.String()
 }
 
+// Discards child nodes whose Range starts after "pos"
 func (n *Node) Discard(pos int) {
 	back := len(n.Children)
 	popIdx := 0
@@ -87,6 +103,16 @@ func (n *Node) Discard(pos int) {
 		n.Children = n.Children[:popIdx]
 	}
 }
+
+// Cleanup is different from Discard in that
+// it returns a new Node containing the Children whose
+// Range are within the region of "pos" and "end".
+//
+// The receiver Node "n" will be the same as if
+// we had called n.Discard(pos).
+//
+// Child-nodes starting after "end" will be in
+// neither "n" nor the new returned Node.
 func (n *Node) Cleanup(pos, end int) *Node {
 	var popped Node
 	popped.Range = text.Region{pos, end}
@@ -123,6 +149,7 @@ func (n *Node) Cleanup(pos, end int) *Node {
 	return &popped
 }
 
+// Clones this node-sub tree
 func (n *Node) Clone() *Node {
 	ret := *n
 	ret.Children = make([]*Node, len(n.Children))
@@ -132,6 +159,7 @@ func (n *Node) Clone() *Node {
 	return &ret
 }
 
+// Adjusts this node's range and that of its children at "position" by "delta".
 func (n *Node) Adjust(position, delta int) {
 	n.Range.Adjust(position, delta)
 	for _, child := range n.Children {
@@ -139,6 +167,8 @@ func (n *Node) Adjust(position, delta int) {
 	}
 }
 
+// UpdateRange makes sure that all parent nodes ranges
+// contain their children.
 func (n *Node) UpdateRange() text.Region {
 	for _, child := range n.Children {
 		curr := child.UpdateRange()
@@ -152,10 +182,14 @@ func (n *Node) UpdateRange() text.Region {
 	return n.Range
 }
 
+// Append node "child" at the end of this node's Children slice.
 func (n *Node) Append(child *Node) {
 	n.Children = append(n.Children, child)
 }
 
+// Simplify this sub-tree by merging children into the parent where
+// the parent only has a single child and the parent and child occupy
+// the exact same Range.
 func (n *Node) Simplify() {
 	for _, child := range n.Children {
 		child.Simplify()
