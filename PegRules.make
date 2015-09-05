@@ -1,7 +1,7 @@
 .SUFFIXES: .peg .go
 
 CP = cp
-PEGPARSER = @echo $$GOPATH/bin/pegparser
+PEGPARSER = $(GOPATH)/bin/pegparser
 buildPeg = $(PEGPARSER) "-peg=$(1)" -notest -ignore="$(2)" -testfile="$(3)" -outpath "$(dir $@)" -generator="$(4)"
 
 $(PEGPARSER):
