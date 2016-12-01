@@ -1,17 +1,17 @@
 .SUFFIXES: .peg .go
 
 CP = cp
-PEGPARSER = $(GOPATH)/bin/pegparser
-buildPeg = $(PEGPARSER) "-peg=$(1)" -notest -ignore="$(2)" -testfile="$(3)" -outpath "$(dir $@)" -generator="$(4)"
+PEGPATH = "$(GOPATH)/bin/pegparser"
+buildPeg = $(PEGPATH) "-peg=$(1)" -notest -ignore="$(2)" -testfile="$(3)" -outpath "$(dir $@)" -generator="$(4)"
 
-$(PEGPARSER):
+PEGPARSER:
 	go install github.com/quarnster/parser/pegparser
 
-%.go: %.peg $(PEGPARSER)
+%.go: %.peg PEGPARSER
 	$(call buildPeg,$<,$(ignore_$(subst .go,,$(notdir $@))),$(testfile_$(subst .go,,$(notdir $@))),go)
 
-%.c: %.peg $(PEGPARSER)
+%.c: %.peg PEGPARSER
 	$(call buildPeg,$<,$(ignore_$(subst .c,,$(notdir $@))),$(testfile_$(subst .c,,$(notdir $@))),c)
 
-%.cpp: %.peg $(PEGPARSER)
+%.cpp: %.peg PEGPARSER
 	$(call buildPeg,$<,$(ignore_$(subst .cpp,,$(notdir $@))),$(testfile_$(subst .cpp,,$(notdir $@))),cpp)
